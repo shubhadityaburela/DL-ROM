@@ -1,13 +1,9 @@
-# from POD_DL_ROM_LIB import Helper
-
 import Helper
 import numpy as np
 import time
 import torch
 import os
 from NetworkModel import ConvAutoEncoderDNN
-
-# from POD_DL_ROM_LIB.NetworkModel import ConvAutoEncoderDNN
 
 try:
     import tensorboard
@@ -100,18 +96,15 @@ class TrainingFramework(object):
 
             # We now perform random permutation of the columns of the 'self.snapshot_train' and 'self.parameter_train'
             # to better generalize the split
-            print('Permuting the columns of SNAPSHOT TRAINING MATRIX and PARAMETER TRAINING MATRIX...\n')
             perm_id = np.random.RandomState(seed=42).permutation(self.snapshot_train.shape[1])
             self.snapshot_train = self.snapshot_train[:, perm_id]
             self.parameter_train = self.parameter_train[:, perm_id]
 
-            print('Splitting the SNAPSHOT TRAINING MATRIX...\n')
             # Split the 'self.snapshot_train' matrix into -> 'self.snapshot_train_train' and 'self.snapshot_train_val'
             self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
             self.snapshot_train_val = np.zeros((self.num_dimension * self.N, self.snapshot_train.shape[1] -
                                                 self.num_training_samples))
 
-            print('Compute the intrinsic coordinate matrix for SNAPSHOT TRAINING MATRIX and SNAPSHOT VALIDATION MATRIX...')
             # Compute the intrinsic coordinates for 'self.snapshot_train_train' and 'self.snapshot_train_val'
             # by performing a projection onto the reduced basis.
             # self.snapshot_train_train = (self.U)^T x self.snapshot_train
@@ -124,7 +117,6 @@ class TrainingFramework(object):
                 self.snapshot_train_val[i * self.N:(i + 1) * self.N, :] = np.matmul(
                     self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
                     self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, self.num_training_samples:])
-            print('took:', time.time() - start_time, ' secs...\n')
         else:
             self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
             self.snapshot_train_val = np.zeros((self.num_dimension * self.N, self.num_samples - self.num_training_samples))
@@ -137,10 +129,7 @@ class TrainingFramework(object):
             self.snapshot_train_val = self.time_amplitude_train[:, self.num_training_samples:]
 
         # Normalize the data in 'self.snapshot_train_train' and 'self.snapshot_train_val'
-        start_time = time.time()
         if self.scaling:
-            print(
-                'Normalize the training and validation INTRINSIC COORDINATE MATRICES and PARAMETER TRAINING MATRIX...')
             snapshot_max, snapshot_min = Helper.max_min_componentwise(self.snapshot_train_train,
                                                                       self.num_training_samples,
                                                                       self.num_dimension, self.N)
@@ -154,9 +143,7 @@ class TrainingFramework(object):
                                                                                self.parameter_train.shape[0])
             Helper.scaling_componentwise_params(self.parameter_train, parameter_max, parameter_min,
                                                 self.parameter_train.shape[0])
-        print('took: ', time.time() - start_time, ' secs...\n')
 
-        print('Splitting the PARAMETER TRAINING MATRIX...\n')
         # Split the 'self.parameter_train' matrix into -> 'self.parameter_train_train' and 'self.parameter_train_val'
         self.parameter_train_train = self.parameter_train[:, :self.num_training_samples]
         self.parameter_train_val = self.parameter_train[:, self.num_training_samples:]
@@ -365,7 +352,7 @@ class TrainingFramework(object):
         if self.tensorboard:
             self.tensorboard.close()
 
-        log_folder_trained_model = './trained_models/'
+        log_folder_trained_model = './trained_models/' + log_base_name + time.strftime("%Y_%m_%d__%H-%M-%S", time.localtime()) + '/'
         if not os.path.isdir(log_folder_trained_model):
             os.makedirs(log_folder_trained_model)
 

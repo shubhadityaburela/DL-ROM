@@ -107,7 +107,7 @@ if __name__ == '__main__':
     }
 
     POD_DL_ROM = TrainingFramework(params)
-    POD_DL_ROM.training(10)
+    POD_DL_ROM.training(5)
 
     # TESTING = TestingFramework(params)
     # TESTING.testing()

@@ -1,5 +1,3 @@
-# from POD_DL_ROM_LIB import Helper
-
 import Helper
 import numpy as np
 import time
@@ -57,7 +55,6 @@ class TestingFramework(object):
 
     def testing_data_preparation(self):
         if self.FOM:
-            print("Load Snapshot Matrix...")
             # First we need to perform the SVD of the snapshot matrix to create the basis matrix 'self.U'
             # Full_dimension = N_h x N_s, where N_s = N_train x N_t (N_t : time instants, N_train : parameter instances)
             # Reduced dimension = N (the final basis matrix U will be of size N_h x N)
@@ -70,61 +67,46 @@ class TestingFramework(object):
                 exit()
             self.U_transpose = np.transpose(self.U)  # making it (U^T)
 
-            if self.scaling:
-                # We now perform random permutation of the columns of the 'self.snapshot_train'
-                # to better generalize the split
-                perm_id = np.random.RandomState(seed=42).permutation(self.snapshot_train.shape[1])
-                self.snapshot_train = self.snapshot_train[:, perm_id]
-                self.parameter_train = self.parameter_train[:, perm_id]
+            # We now perform random permutation of the columns of the 'self.snapshot_train'
+            # to better generalize the split
+            perm_id = np.random.RandomState(seed=42).permutation(self.snapshot_train.shape[1])
+            self.snapshot_train = self.snapshot_train[:, perm_id]
+            self.parameter_train = self.parameter_train[:, perm_id]
 
-                # Split the 'self.snapshot_train' matrix into -> 'self.snapshot_train_train'
-                self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
+            # Split the 'self.snapshot_train' matrix into -> 'self.snapshot_train_train'
+            self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
 
-                # Compute the intrinsic coordinates for 'self.snapshot_train_train' by performing a projection onto the
-                # reduced basis.
-                # self.snapshot_train_train = (self.U)^T x self.snapshot_train
-                for i in range(self.num_dimension):
-                    self.snapshot_train_train[i * self.N:(i + 1) * self.N, :] = np.matmul(
-                        self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
-                        self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, :self.num_training_samples])
+            # Compute the intrinsic coordinates for 'self.snapshot_train_train' by performing a projection onto the
+            # reduced basis.
+            # self.snapshot_train_train = (self.U)^T x self.snapshot_train
+            for i in range(self.num_dimension):
+                self.snapshot_train_train[i * self.N:(i + 1) * self.N, :] = np.matmul(
+                    self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
+                    self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, :self.num_training_samples])
 
-                self.snapshot_max, self.snapshot_min = Helper.max_min_componentwise(self.snapshot_train_train,
-                                                                                    self.num_training_samples,
-                                                                                    self.num_dimension, self.N)
-
-                self.parameter_max, self.parameter_min = Helper.max_min_componentwise_params(self.parameter_train,
-                                                                                             self.num_training_samples,
-                                                                                             self.parameter_train.shape[0])
-            print("Load Testing Snapshot Matrix...")
             self.snapshot_test_test = np.zeros((self.num_dimension * self.N, self.num_test_samples))
             for i in range(self.num_dimension):
                 self.snapshot_test_test[i * self.N:(i + 1) * self.N, :] = np.matmul(
                     self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
                     self.snapshot_test[i * self.N_h:(i + 1) * self.N_h, :])
         else:
-            print('Loading training time amplitude matrix')
-            if self.scaling:
-                perm_id = np.random.RandomState(seed=42).permutation(self.time_amplitude_train.shape[1])
-                self.time_amplitude_train = self.time_amplitude_train[:, perm_id]
-                self.parameter_train = self.parameter_train[:, perm_id]
+            perm_id = np.random.RandomState(seed=42).permutation(self.time_amplitude_train.shape[1])
+            self.time_amplitude_train = self.time_amplitude_train[:, perm_id]
+            self.parameter_train = self.parameter_train[:, perm_id]
 
-                self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
-                self.snapshot_train_train = self.time_amplitude_train[:, :self.num_training_samples]
+            self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
+            self.snapshot_train_train = self.time_amplitude_train[:, :self.num_training_samples]
 
-                self.snapshot_max, self.snapshot_min = Helper.max_min_componentwise(self.snapshot_train_train,
-                                                                                    self.num_training_samples,
-                                                                                    self.num_dimension, self.N)
-
-                self.parameter_max, self.parameter_min = Helper.max_min_componentwise_params(self.parameter_train,
-                                                                                             self.num_training_samples,
-                                                                                             self.parameter_train.shape[
-                                                                                                 0])
-
-                print("Load Testing time amplitude Matrix and Testing Parameter Matrix...")
-                self.snapshot_test_test = np.zeros((self.num_dimension * self.N, self.num_test_samples))
-                self.snapshot_test_test = self.time_amplitude_test
+            self.snapshot_test_test = np.zeros((self.num_dimension * self.N, self.num_test_samples))
+            self.snapshot_test_test = self.time_amplitude_test
 
         if self.scaling:
+            self.snapshot_max, self.snapshot_min = Helper.max_min_componentwise(self.snapshot_train_train,
+                                                                                self.num_training_samples,
+                                                                                self.num_dimension, self.N)
+            self.parameter_max, self.parameter_min = Helper.max_min_componentwise_params(self.parameter_train,
+                                                                                         self.num_training_samples,
+                                                                                         self.parameter_train.shape[0])
             Helper.scaling_componentwise(self.snapshot_test_test, self.snapshot_max, self.snapshot_min,
                                          self.num_dimension, self.N)
             Helper.scaling_componentwise_params(self.parameter_test, self.parameter_max, self.parameter_min,
@@ -159,10 +141,10 @@ class TestingFramework(object):
 
         pass
 
-    def testing(self):
+    def testing(self, log_folder_base=''):
         start_time = time.time()
 
-        log_folder_trained_model = './trained_models/'
+        log_folder_trained_model = './trained_models/' + log_folder_base
         if not os.path.isdir(log_folder_trained_model):
             print('The trained model is not present in the log folder named trained_models')
             exit()
