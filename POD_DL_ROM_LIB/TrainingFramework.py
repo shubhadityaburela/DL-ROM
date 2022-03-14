@@ -1,9 +1,13 @@
-from POD_DL_ROM_LIB import Helper
+# from POD_DL_ROM_LIB import Helper
+
+import Helper
 import numpy as np
 import time
 import torch
 import os
-from POD_DL_ROM_LIB.NetworkModel import ConvAutoEncoderDNN
+from NetworkModel import ConvAutoEncoderDNN
+
+# from POD_DL_ROM_LIB.NetworkModel import ConvAutoEncoderDNN
 
 try:
     import tensorboard

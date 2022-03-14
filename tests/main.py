@@ -1,7 +1,9 @@
 import numpy as np
 import sys
-from POD_DL_ROM_LIB.TestingFramework import TestingFramework
-from POD_DL_ROM_LIB.TrainingFramework import TrainingFramework
+
+sys.path.append('./../POD_DL_ROM_LIB/')
+
+from TrainingFramework import TrainingFramework
 
 
 def generate():
