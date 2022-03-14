@@ -19,8 +19,11 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class TrainingFramework(object):
     def __init__(self, params, device=DEVICE, log_folder='./training_results_local/') -> None:
 
+        self.FOM = params['FOM']
         self.snapshot_train = params['snapshot_train']
         self.snapshot_test = params['snapshot_test']
+        self.time_amplitude_train = params['time_amplitude_train']
+        self.time_amplitude_test = params['time_amplitude_test']
         self.parameter_train = params['parameter_train']
         self.parameter_test = params['parameter_test']
         self.num_parameters = params['num_parameters']
@@ -40,6 +43,7 @@ class TrainingFramework(object):
         self.omega_h = params['omega_h']
         self.omega_N = params['omega_N']
         self.n_h = params['n_h']
+        self.typeConv = params['typeConv']
 
         self.device = device
         self.logs_folder = log_folder
@@ -78,44 +82,55 @@ class TrainingFramework(object):
     def data_preparation(self):
         print('DATA PREPARATION START...\n')
 
-        # First we need to perform the SVD of the snapshot matrix to create the basis matrix 'self.U'
-        # Full_dimension = N_h x N_s, where N_s = N_train x N_t (N_t : time instants, N_train : parameter instances)
-        # Reduced dimension = N (the final basis matrix U will be of size N_h x N)
-        if self.perform_svd == 'normal':
-            self.U = Helper.PerformSVD(self.snapshot_train, self.N, self.N_h, self.num_dimension)
-        elif self.perform_svd == 'randomized':
-            self.U = Helper.PerformRandomizedSVD(self.snapshot_train, self.N, self.N_h, self.num_dimension)
+        if self.FOM:
+            # First we need to perform the SVD of the snapshot matrix to create the basis matrix 'self.U'
+            # Full_dimension = N_h x N_s, where N_s = N_train x N_t (N_t : time instants, N_train : parameter instances)
+            # Reduced dimension = N (the final basis matrix U will be of size N_h x N)
+            if self.perform_svd == 'normal':
+                self.U = Helper.PerformSVD(self.snapshot_train, self.N, self.N_h, self.num_dimension)
+            elif self.perform_svd == 'randomized':
+                self.U = Helper.PerformRandomizedSVD(self.snapshot_train, self.N, self.N_h, self.num_dimension)
+            else:
+                print('Please select of the two options : normal or randomized')
+                exit()
+
+            # We now perform random permutation of the columns of the 'self.snapshot_train' and 'self.parameter_train'
+            # to better generalize the split
+            print('Permuting the columns of SNAPSHOT TRAINING MATRIX and PARAMETER TRAINING MATRIX...\n')
+            perm_id = np.random.RandomState(seed=42).permutation(self.snapshot_train.shape[1])
+            self.snapshot_train = self.snapshot_train[:, perm_id]
+            self.parameter_train = self.parameter_train[:, perm_id]
+
+            print('Splitting the SNAPSHOT TRAINING MATRIX...\n')
+            # Split the 'self.snapshot_train' matrix into -> 'self.snapshot_train_train' and 'self.snapshot_train_val'
+            self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
+            self.snapshot_train_val = np.zeros((self.num_dimension * self.N, self.snapshot_train.shape[1] -
+                                                self.num_training_samples))
+
+            print('Compute the intrinsic coordinate matrix for SNAPSHOT TRAINING MATRIX and SNAPSHOT VALIDATION MATRIX...')
+            # Compute the intrinsic coordinates for 'self.snapshot_train_train' and 'self.snapshot_train_val'
+            # by performing a projection onto the reduced basis.
+            # self.snapshot_train_train = (self.U)^T x self.snapshot_train
+            start_time = time.time()
+            self.U_transpose = np.transpose(self.U)  # making it (U^T)
+            for i in range(self.num_dimension):
+                self.snapshot_train_train[i * self.N:(i + 1) * self.N, :] = np.matmul(
+                    self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
+                    self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, :self.num_training_samples])
+                self.snapshot_train_val[i * self.N:(i + 1) * self.N, :] = np.matmul(
+                    self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
+                    self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, self.num_training_samples:])
+            print('took:', time.time() - start_time, ' secs...\n')
         else:
-            print('Please select of the two options : normal or randomized')
-            exit()
+            self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
+            self.snapshot_train_val = np.zeros((self.num_dimension * self.N, self.num_samples - self.num_training_samples))
 
-        # We now perform random permutation of the columns of the 'self.snapshot_train' and 'self.parameter_train'
-        # to better generalize the split
-        print('Permuting the columns of SNAPSHOT TRAINING MATRIX and PARAMETER TRAINING MATRIX...\n')
-        perm_id = np.random.RandomState(seed=42).permutation(self.snapshot_train.shape[1])
-        self.snapshot_train = self.snapshot_train[:, perm_id]
-        self.parameter_train = self.parameter_train[:, perm_id]
+            perm_id = np.random.RandomState(seed=42).permutation(self.time_amplitude_train.shape[1])
+            self.time_amplitude_train = self.time_amplitude_train[:, perm_id]
+            self.parameter_train = self.parameter_train[:, perm_id]
 
-        print('Splitting the SNAPSHOT TRAINING MATRIX...\n')
-        # Split the 'self.snapshot_train' matrix into -> 'self.snapshot_train_train' and 'self.snapshot_train_val'
-        self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
-        self.snapshot_train_val = np.zeros((self.num_dimension * self.N, self.snapshot_train.shape[1] -
-                                            self.num_training_samples))
-
-        print('Compute the intrinsic coordinate matrix for SNAPSHOT TRAINING MATRIX and SNAPSHOT VALIDATION MATRIX...')
-        # Compute the intrinsic coordinates for 'self.snapshot_train_train' and 'self.snapshot_train_val'
-        # by performing a projection onto the reduced basis.
-        # self.snapshot_train_train = (self.U)^T x self.snapshot_train
-        start_time = time.time()
-        self.U_transpose = np.transpose(self.U)  # making it (U^T)
-        for i in range(self.num_dimension):
-            self.snapshot_train_train[i * self.N:(i + 1) * self.N, :] = np.matmul(
-                self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
-                self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, :self.num_training_samples])
-            self.snapshot_train_val[i * self.N:(i + 1) * self.N, :] = np.matmul(
-                self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
-                self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, self.num_training_samples:])
-        print('took:', time.time() - start_time, ' secs...\n')
+            self.snapshot_train_train = self.time_amplitude_train[:, :self.num_training_samples]
+            self.snapshot_train_val = self.time_amplitude_train[:, self.num_training_samples:]
 
         # Normalize the data in 'self.snapshot_train_train' and 'self.snapshot_train_val'
         start_time = time.time()
@@ -161,10 +176,19 @@ class TrainingFramework(object):
         y_val = torch.from_numpy(self.parameter_train_val).float()
 
         # Reshape the training and validation data into the appropriate shape
-        X_train = torch.reshape(X_train, shape=[-1, self.num_dimension,
+        if self.typeConv == '2D':
+            X_train = torch.reshape(X_train, shape=[-1, self.num_dimension,
+                                                    int(np.sqrt(self.N)), int(np.sqrt(self.N))])
+            X_val = torch.reshape(X_val, shape=[-1, self.num_dimension,
                                                 int(np.sqrt(self.N)), int(np.sqrt(self.N))])
-        X_val = torch.reshape(X_val, shape=[-1, self.num_dimension,
-                                            int(np.sqrt(self.N)), int(np.sqrt(self.N))])
+        elif self.typeConv == '1D':
+            X_train = torch.reshape(X_train, shape=[-1, self.num_dimension, self.N])
+            X_val = torch.reshape(X_val, shape=[-1, self.num_dimension, self.N])
+        else:
+            X_train = torch.reshape(X_train, shape=[-1, self.num_dimension,
+                                                    int(np.sqrt(self.N)), int(np.sqrt(self.N))])
+            X_val = torch.reshape(X_val, shape=[-1, self.num_dimension,
+                                                int(np.sqrt(self.N)), int(np.sqrt(self.N))])
 
         dataset_train = torch.utils.data.TensorDataset(X_train, y_train)
         self.training_loader = torch.utils.data.DataLoader(dataset_train, batch_size=self.batch_size, shuffle=True,
@@ -204,8 +228,13 @@ class TrainingFramework(object):
         Helper.save_codeBase(os.getcwd(), log_folder)
 
         # Instantiate the model
-        # self.model = DFNCAE(self.n, self.num_parameters, self.N)
-        self.model = ConvAutoEncoderDNN()
+        if self.typeConv == '2D':
+            conv_shape = (int(np.sqrt(self.N)), int(np.sqrt(self.N)))
+        elif self.typeConv == '1D':
+            conv_shape = self.N
+        else:
+            conv_shape = (int(np.sqrt(self.N)), int(np.sqrt(self.N)))
+        self.model = ConvAutoEncoderDNN(conv_shape=conv_shape, num_params=self.num_parameters, typeConv=self.typeConv)
         # print(self.model)
 
         # Save the model graph in tensorboard
@@ -238,8 +267,6 @@ class TrainingFramework(object):
                 # Forward pass to get the outputs and calculate the loss
                 self.enc, self.nn, self.dec = self.model(snapshot_data, parameters)
                 # print(self.enc.size()), print(self.nn.size()), print(self.dec.size())
-                # print(type(self.enc)), print(type(self.nn)), print(type(self.dec))
-                # print(tmp[0].size())
 
                 self.loss_function(snapshot_data)
 

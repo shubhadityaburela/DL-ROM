@@ -26,20 +26,27 @@ class ConvEncoder(Base):
         # Here we define the hyperparameter required for the Convolutional Encoder architecture
         self.k = 5  # Size of the convolutional kernel
         self.n = encoded_dimension  # Encoded dimension for the convolutional encoder
+        self.conv_shape_list = []  # The list storing the convolutional shapes of the inputs and outputs
 
         # Encoder layers which take in the input of size corresponding to 'N' and reduce it to encoded dimension 'n'
         self.conv_shape = conv_shape
         self.input_norm = input_norm(1)
 
-        self.padding = (0, 0)
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
+
+        self.padding = (2, 2)
         self.kernel_size = (self.k, self.k)
         self.stride = (1, 1)
         self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=8, kernel_size=self.kernel_size, stride=self.stride,
-                                     padding='same')
+                                     padding=self.padding)
         self.conv1b = torch.nn.BatchNorm2d(8)
         self.conv_shape = [np.floor(
             (self.conv_shape[i] + 2 * self.padding[i] - self.kernel_size[i]) / self.stride[i] + 1)
             for i in range(len(conv_shape))]
+
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
 
         self.padding = (2, 2)
         self.kernel_size = (self.k, self.k)
@@ -51,6 +58,9 @@ class ConvEncoder(Base):
             (self.conv_shape[i] + 2 * self.padding[i] - self.kernel_size[i]) / self.stride[i] + 1)
             for i in range(len(conv_shape))]
 
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
+
         self.padding = (2, 2)
         self.kernel_size = (self.k, self.k)
         self.stride = (2, 2)
@@ -61,6 +71,9 @@ class ConvEncoder(Base):
             (self.conv_shape[i] + 2 * self.padding[i] - self.kernel_size[i]) / self.stride[i] + 1)
             for i in range(len(conv_shape))]
 
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
+
         self.padding = (2, 2)
         self.kernel_size = (self.k, self.k)
         self.stride = (2, 2)
@@ -70,6 +83,9 @@ class ConvEncoder(Base):
         self.conv_shape = [np.floor(
             (self.conv_shape[i] + 2 * self.padding[i] - self.kernel_size[i]) / self.stride[i] + 1)
             for i in range(len(conv_shape))]
+
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
 
         num_channels_last_layer = 64
         feature_dim_encoding = self.conv_shape[0] * self.conv_shape[1] * num_channels_last_layer
@@ -162,53 +178,255 @@ class DeepFeedForwardNetwork(Base):
 
 
 class ConvDecoder(Base):
-    def __init__(self, encoded_dimension, reduced_dimension, f=torch.nn.Sigmoid,
-                 conv_shape=(16, 16), lam=1, init_zeros=False):
+    def __init__(self, encoded_dimension, f=torch.nn.Sigmoid, conv_shape=None, lam=1, init_zeros=False):
         super(self.__class__, self).__init__()
 
         # Here we define the hyperparameter required for the Convolutional Encoder architecture
         self.k = 5  # Size of the convolutional kernel
         self.n = encoded_dimension  # Encoded dimension for the convolutional encoder
-        self.N = reduced_dimension  # This is the reduced dimension of the Full order model
         self.lam = lam
+        self.conv_shape_list = conv_shape
 
         # Decoder layers that take in the dimension 'n' and expands it to N
         self.fc1_t = torch.nn.Linear(in_features=self.n, out_features=64)
         self.fc1b_t = torch.nn.BatchNorm1d(64)
 
-        self.fc2_t = torch.nn.Linear(in_features=64, out_features=self.N)
+        self.fc2_t = torch.nn.Linear(in_features=64, out_features=64 * int(self.conv_shape_list[-1][0]) * int(self.conv_shape_list[-1][1]))
 
         self.conv1b_t = torch.nn.BatchNorm2d(64)
-        self.conv1_t = torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=(self.k, self.k),
-                                                stride=(2, 2), padding=(2, 2), output_padding=(1, 1))
+        self.stride = (1, 1)
+        self.kernel_size = (self.k, self.k)
+        p1 = np.floor(((self.conv_shape_list[-1][0] - 1) * self.stride[0] + self.k - self.conv_shape_list[-2][0]) / 2)
+        p2 = np.floor(((self.conv_shape_list[-1][1] - 1) * self.stride[1] + self.k - self.conv_shape_list[-2][1]) / 2)
+        self.padding = (int(p1), int(p2))
+        self.conv1_t = torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=self.kernel_size,
+                                                stride=self.stride, padding=self.padding)
 
         self.conv2b_t = torch.nn.BatchNorm2d(64)
+        self.stride = (1, 1)
+        self.kernel_size = (self.k, self.k)
+        p1 = np.floor(((self.conv_shape_list[-2][0] - 1) * self.stride[0] + self.k - self.conv_shape_list[-3][0]) / 2)
+        p2 = np.floor(((self.conv_shape_list[-2][1] - 1) * self.stride[1] + self.k - self.conv_shape_list[-3][1]) / 2)
+        self.padding = (int(p1), int(p2))
         self.conv2_t = torch.nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=(self.k, self.k),
-                                                stride=(2, 2), padding=(2, 2), output_padding=(1, 1))
+                                                stride=self.stride, padding=self.padding)
 
         self.conv3b_t = torch.nn.BatchNorm2d(32)
+        self.stride = (2, 2)
+        self.kernel_size = (self.k, self.k)
+        p1 = np.floor(((self.conv_shape_list[-3][0] - 1) * self.stride[0] + self.k - self.conv_shape_list[-4][0]) / 2)
+        p2 = np.floor(((self.conv_shape_list[-3][1] - 1) * self.stride[1] + self.k - self.conv_shape_list[-4][1]) / 2)
+        self.padding = (int(p1), int(p2))
         self.conv3_t = torch.nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=(self.k, self.k),
-                                                stride=(2, 2), padding=(2, 2), output_padding=(1, 1))
+                                                stride=self.stride, padding=self.padding)
 
         self.conv4b_t = torch.nn.BatchNorm2d(16)
+        self.stride = (2, 2)
+        self.kernel_size = (self.k, self.k)
+        p1 = np.floor(((self.conv_shape_list[-4][0] - 1) * self.stride[0] + self.k - self.conv_shape_list[-5][0]) / 2)
+        p2 = np.floor(((self.conv_shape_list[-4][1] - 1) * self.stride[1] + self.k - self.conv_shape_list[-5][1]) / 2)
+        self.padding = (int(p1), int(p2))
         self.conv4_t = torch.nn.ConvTranspose2d(in_channels=16, out_channels=1, kernel_size=(self.k, self.k),
-                                                stride=(1, 1), padding=(2, 2))
+                                                stride=self.stride, padding=self.padding)
+
+        # Adaptive pooling to get the desired output size
+        self.adaPool = torch.nn.AdaptiveAvgPool2d((self.conv_shape_list[-5][0], self.conv_shape_list[-5][1]))
 
         self.f = f()
 
     def forward(self, x, apply_f=True, return_dec=False):
+        # print(x.size())
         x = self.fc1b_t(self.activation(self.fc1_t(x)))
+        # print(x.size())
         x = self.activation(self.fc2_t(x))
+
+        # print(x.size())
 
         x_s = torch.reshape(x, shape=[x.size(0), 64, -1])
         dec = self.conv1b_t(torch.reshape(x, shape=[x.size(0), 64, int(np.sqrt(x_s.shape[2])),
                                                     int(np.sqrt(x_s.shape[2]))]))
+        # print(dec.size())
 
         # Feature generation
         dec = self.conv2b_t(self.activation(self.conv1_t(dec)))
+        # print(dec.size())
         dec = self.conv3b_t(self.activation(self.conv2_t(dec)))
+        # print(dec.size())
         dec = self.conv4b_t(self.activation(self.conv3_t(dec)))
+        # print(dec.size())
         dec = self.conv4_t(dec)
+        # print(dec.size())
+        dec = self.adaPool(dec)
+        # print(dec.size())
+
+        if apply_f:
+            if return_dec:
+                return dec, self.f(dec/self.lam)
+            else:
+                return self.f(dec/self.lam)
+        else:
+            return dec
+
+
+class ConvEncoder1D(Base):
+    def __init__(self, encoded_dimension, conv_shape=None, input_norm=torch.nn.InstanceNorm1d):
+        super(self.__class__, self).__init__()
+
+        # Here we define the hyperparameter required for the Convolutional Encoder architecture
+        self.k = 5  # Size of the convolutional kernel
+        self.n = encoded_dimension  # Encoded dimension for the convolutional encoder
+        self.conv_shape_list = []  # The list storing the convolutional shapes of the inputs and outputs
+
+        # Encoder layers which take in the input of size corresponding to 'N' and reduce it to encoded dimension 'n'
+        self.conv_shape = conv_shape
+        self.input_norm = input_norm(1)
+
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
+
+        self.padding = 2
+        self.kernel_size = self.k
+        self.stride = 1
+        self.conv1 = torch.nn.Conv1d(in_channels=1, out_channels=8, kernel_size=self.kernel_size, stride=self.stride,
+                                     padding=self.padding)
+        self.conv1b = torch.nn.BatchNorm1d(8)
+        self.conv_shape = np.floor((self.conv_shape + 2 * self.padding - self.kernel_size) / self.stride + 1)
+
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
+
+        self.padding = 2
+        self.kernel_size = self.k
+        self.stride = 2
+        self.conv2 = torch.nn.Conv1d(in_channels=8, out_channels=16, kernel_size=self.kernel_size, stride=self.stride,
+                                     padding=self.padding)
+        self.conv2b = torch.nn.BatchNorm1d(16)
+        self.conv_shape = np.floor((self.conv_shape + 2 * self.padding - self.kernel_size) / self.stride + 1)
+
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
+
+        self.padding = 2
+        self.kernel_size = self.k
+        self.stride = 2
+        self.conv3 = torch.nn.Conv1d(in_channels=16, out_channels=32, kernel_size=self.kernel_size, stride=self.stride,
+                                     padding=self.padding)
+        self.conv3b = torch.nn.BatchNorm1d(32)
+        self.conv_shape = np.floor((self.conv_shape + 2 * self.padding - self.kernel_size) / self.stride + 1)
+
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
+
+        self.padding = 2
+        self.kernel_size = self.k
+        self.stride = 2
+        self.conv4 = torch.nn.Conv1d(in_channels=32, out_channels=64, kernel_size=self.kernel_size, stride=self.stride,
+                                     padding=self.padding)
+        self.conv4b = torch.nn.BatchNorm1d(64)
+        self.conv_shape = np.floor((self.conv_shape + 2 * self.padding - self.kernel_size) / self.stride + 1)
+
+        self.conv_shape_list.append(self.conv_shape)
+        # print(self.conv_shape)
+
+        num_channels_last_layer = 64
+        feature_dim_encoding = self.conv_shape * num_channels_last_layer
+        self.fc1 = torch.nn.Linear(in_features=int(feature_dim_encoding), out_features=64)
+        self.fc1b = torch.nn.BatchNorm1d(64)
+
+        self.fc2 = torch.nn.Linear(in_features=64, out_features=self.n)
+
+    def forward(self, x):
+        x = self.input_norm(x)
+
+        # Feature generation
+        x = self.conv1b(self.activation(self.conv1(x)))
+        x = self.conv2b(self.activation(self.conv2(x)))
+        x = self.conv3b(self.activation(self.conv3(x)))
+        x = self.conv4b(self.activation(self.conv4(x)))
+
+        enc = x.view(x.size(0), -1)
+        enc = self.fc1b(self.activation(self.fc1(enc)))
+        enc = self.fc2(enc)
+
+        return enc
+
+
+class ConvDecoder1D(Base):
+    def __init__(self, encoded_dimension, f=torch.nn.Sigmoid, conv_shape=None, lam=1, init_zeros=False):
+        super(self.__class__, self).__init__()
+
+        # Here we define the hyperparameter required for the Convolutional Encoder architecture
+        self.k = 5  # Size of the convolutional kernel
+        self.n = encoded_dimension  # Encoded dimension for the convolutional encoder
+        self.lam = lam
+        self.conv_shape_list = conv_shape
+
+        # Decoder layers that take in the dimension 'n' and expands it to N
+        self.fc1_t = torch.nn.Linear(in_features=self.n, out_features=64)
+        self.fc1b_t = torch.nn.BatchNorm1d(64)
+
+        self.fc2_t = torch.nn.Linear(in_features=64, out_features=64 * int(self.conv_shape_list[-1]))
+
+        self.conv1b_t = torch.nn.BatchNorm1d(64)
+        self.stride = 1
+        self.kernel_size = self.k
+        p = np.floor(((self.conv_shape_list[-1] - 1) * self.stride + self.k - self.conv_shape_list[-2]) / 2)
+        self.padding = int(p)
+        self.conv1_t = torch.nn.ConvTranspose1d(in_channels=64, out_channels=64, kernel_size=self.kernel_size,
+                                                stride=self.stride, padding=self.padding)
+
+        self.conv2b_t = torch.nn.BatchNorm1d(64)
+        self.stride = 1
+        self.kernel_size = self.k
+        p = np.floor(((self.conv_shape_list[-2] - 1) * self.stride + self.k - self.conv_shape_list[-3]) / 2)
+        self.padding = int(p)
+        self.conv2_t = torch.nn.ConvTranspose1d(in_channels=64, out_channels=32, kernel_size=self.kernel_size,
+                                                stride=self.stride, padding=self.padding)
+
+        self.conv3b_t = torch.nn.BatchNorm1d(32)
+        self.stride = 2
+        self.kernel_size = self.k
+        p = np.floor(((self.conv_shape_list[-3] - 1) * self.stride + self.k - self.conv_shape_list[-4]) / 2)
+        self.padding = int(p)
+        self.conv3_t = torch.nn.ConvTranspose1d(in_channels=32, out_channels=16, kernel_size=self.kernel_size,
+                                                stride=self.stride, padding=self.padding)
+
+        self.conv4b_t = torch.nn.BatchNorm1d(16)
+        self.stride = 2
+        self.kernel_size = self.k
+        p = np.floor(((self.conv_shape_list[-4] - 1) * self.stride + self.k - self.conv_shape_list[-5]) / 2)
+        self.padding = int(p)
+        self.conv4_t = torch.nn.ConvTranspose1d(in_channels=16, out_channels=1, kernel_size=self.kernel_size,
+                                                stride=self.stride, padding=self.padding)
+
+        # Adaptive pooling to get the desired output size
+        self.adaPool = torch.nn.AdaptiveAvgPool1d(self.conv_shape_list[-5])
+
+        self.f = f()
+
+    def forward(self, x, apply_f=True, return_dec=False):
+        # print(x.size())
+        x = self.fc1b_t(self.activation(self.fc1_t(x)))
+        # print(x.size())
+        x = self.activation(self.fc2_t(x))
+
+        # print(x.size())
+
+        dec = torch.reshape(x, shape=[x.size(0), 64, -1])
+        dec = self.conv1b_t(dec)
+        # print(dec.size())
+
+        # Feature generation
+        dec = self.conv2b_t(self.activation(self.conv1_t(dec)))
+        # print(dec.size())
+        dec = self.conv3b_t(self.activation(self.conv2_t(dec)))
+        # print(dec.size())
+        dec = self.conv4b_t(self.activation(self.conv3_t(dec)))
+        # print(dec.size())
+        dec = self.conv4_t(dec)
+        # print(dec.size())
+        dec = self.adaPool(dec)
+        # print(dec.size())
 
         if apply_f:
             if return_dec:
@@ -220,15 +438,30 @@ class ConvDecoder(Base):
 
 
 class ConvAutoEncoderDNN(Base):
-    def __init__(self, encoder=None, df_nn=None, decoder=None, encoded_dimension=4, reduced_dimension=64,
-                 f=torch.nn.Sigmoid, conv_shape=(8, 8), num_params=2):
+    def __init__(self, encoder=None, df_nn=None, decoder=None, encoded_dimension=4, f=torch.nn.Sigmoid,
+                 conv_shape=(16, 16), num_params=2, typeConv='2D'):
         super(self.__class__, self).__init__()
 
-        self.has_bottleneck = True
+        self.typeConv = typeConv
 
-        self.Conv_encoder = ConvEncoder(encoded_dimension, conv_shape) if encoder is None else encoder
+        if self.typeConv == '2D':
+            self.Conv_encoder = ConvEncoder(encoded_dimension, conv_shape) if encoder is None else encoder
+        elif self.typeConv == '1D':
+            self.Conv_encoder = ConvEncoder1D(encoded_dimension, conv_shape) if encoder is None else encoder
+        else:
+            self.Conv_encoder = ConvEncoder(encoded_dimension, conv_shape) if encoder is None else encoder
+
         self.Deep_FNN = DeepFeedForwardNetwork(encoded_dimension, num_params) if df_nn is None else df_nn
-        self.Conv_decoder = ConvDecoder(encoded_dimension, reduced_dimension, f) if decoder is None else decoder
+
+        if self.typeConv == '2D':
+            self.Conv_decoder = ConvDecoder(encoded_dimension, f, conv_shape=self.Conv_encoder.conv_shape_list) \
+                if decoder is None else decoder
+        elif self.typeConv == '1D':
+            self.Conv_decoder = ConvDecoder1D(encoded_dimension, f, conv_shape=self.Conv_encoder.conv_shape_list) \
+                if decoder is None else decoder
+        else:
+            self.Conv_decoder = ConvDecoder(encoded_dimension, f, conv_shape=self.Conv_encoder.conv_shape_list) \
+                if decoder is None else decoder
 
     def forward(self, x, y, return_code=False, apply_f=True, return_res=False):
         enc = self.Conv_encoder(x)
