@@ -77,8 +77,11 @@ if __name__ == '__main__':
 
     # Parameters needed for the training and validation of the framework
     params = {
+        'FOM': True,  # This switch is true for full order model input and false for only time amplitude matrix
         'snapshot_train': TrainingSnapShotMatrix,
         'snapshot_test': TestingSnapShotMatrix,
+        'time_amplitude_train': None,
+        'time_amplitude_test': None,
         'parameter_train': TrainingParameterMatrix,
         'parameter_test': TestingParameterMatrix,
         'num_parameters': int(TrainingParameterMatrix.shape[0]),  # n_mu + 1
@@ -92,16 +95,17 @@ if __name__ == '__main__':
         'perform_svd': 'randomized',  # '', 'normal', 'randomized'
         'learning_rate': 0.001,  # eta  0.001
         'full_order_model_dimension': int(TrainingSnapShotMatrix.shape[0]),  # N_h
-        'reduced_order_model_dimension': 64,  # N
+        'reduced_order_model_dimension': 16,  # N
         'encoded_dimension': 4,  # dimension of the system after the encoder
         'num_dimension': 1,  # Number of channels (d)
         'omega_h': 0.8,
         'omega_N': 0.2,
-        'n_h': None
+        'n_h': None,
+        'typeConv': None
     }
 
     POD_DL_ROM = TrainingFramework(params)
     POD_DL_ROM.training(10)
 
-    TESTING = TestingFramework(params)
-    TESTING.testing()
+    # TESTING = TestingFramework(params)
+    # TESTING.testing()
