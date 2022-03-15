@@ -33,7 +33,6 @@ class ConvEncoder(Base):
         self.input_norm = input_norm(1)
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         self.padding = (2, 2)
         self.kernel_size = (self.k, self.k)
@@ -46,7 +45,6 @@ class ConvEncoder(Base):
             for i in range(len(conv_shape))]
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         self.padding = (2, 2)
         self.kernel_size = (self.k, self.k)
@@ -59,7 +57,6 @@ class ConvEncoder(Base):
             for i in range(len(conv_shape))]
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         self.padding = (2, 2)
         self.kernel_size = (self.k, self.k)
@@ -72,7 +69,6 @@ class ConvEncoder(Base):
             for i in range(len(conv_shape))]
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         self.padding = (2, 2)
         self.kernel_size = (self.k, self.k)
@@ -85,7 +81,6 @@ class ConvEncoder(Base):
             for i in range(len(conv_shape))]
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         num_channels_last_layer = 64
         feature_dim_encoding = self.conv_shape[0] * self.conv_shape[1] * num_channels_last_layer
@@ -235,29 +230,19 @@ class ConvDecoder(Base):
         self.f = f()
 
     def forward(self, x, apply_f=True, return_dec=False):
-        # print(x.size())
         x = self.fc1b_t(self.activation(self.fc1_t(x)))
-        # print(x.size())
         x = self.activation(self.fc2_t(x))
-
-        # print(x.size())
 
         x_s = torch.reshape(x, shape=[x.size(0), 64, -1])
         dec = self.conv1b_t(torch.reshape(x, shape=[x.size(0), 64, int(np.sqrt(x_s.shape[2])),
                                                     int(np.sqrt(x_s.shape[2]))]))
-        # print(dec.size())
 
         # Feature generation
         dec = self.conv2b_t(self.activation(self.conv1_t(dec)))
-        # print(dec.size())
         dec = self.conv3b_t(self.activation(self.conv2_t(dec)))
-        # print(dec.size())
         dec = self.conv4b_t(self.activation(self.conv3_t(dec)))
-        # print(dec.size())
         dec = self.conv4_t(dec)
-        # print(dec.size())
         dec = self.adaPool(dec)
-        # print(dec.size())
 
         if apply_f:
             if return_dec:
@@ -282,7 +267,6 @@ class ConvEncoder1D(Base):
         self.input_norm = input_norm(1)
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         self.padding = 2
         self.kernel_size = self.k
@@ -293,7 +277,6 @@ class ConvEncoder1D(Base):
         self.conv_shape = np.floor((self.conv_shape + 2 * self.padding - self.kernel_size) / self.stride + 1)
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         self.padding = 2
         self.kernel_size = self.k
@@ -304,7 +287,6 @@ class ConvEncoder1D(Base):
         self.conv_shape = np.floor((self.conv_shape + 2 * self.padding - self.kernel_size) / self.stride + 1)
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         self.padding = 2
         self.kernel_size = self.k
@@ -315,7 +297,6 @@ class ConvEncoder1D(Base):
         self.conv_shape = np.floor((self.conv_shape + 2 * self.padding - self.kernel_size) / self.stride + 1)
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         self.padding = 2
         self.kernel_size = self.k
@@ -326,7 +307,6 @@ class ConvEncoder1D(Base):
         self.conv_shape = np.floor((self.conv_shape + 2 * self.padding - self.kernel_size) / self.stride + 1)
 
         self.conv_shape_list.append(self.conv_shape)
-        # print(self.conv_shape)
 
         num_channels_last_layer = 64
         feature_dim_encoding = self.conv_shape * num_channels_last_layer
@@ -405,28 +385,18 @@ class ConvDecoder1D(Base):
         self.f = f()
 
     def forward(self, x, apply_f=True, return_dec=False):
-        # print(x.size())
         x = self.fc1b_t(self.activation(self.fc1_t(x)))
-        # print(x.size())
         x = self.activation(self.fc2_t(x))
-
-        # print(x.size())
 
         dec = torch.reshape(x, shape=[x.size(0), 64, -1])
         dec = self.conv1b_t(dec)
-        # print(dec.size())
 
         # Feature generation
         dec = self.conv2b_t(self.activation(self.conv1_t(dec)))
-        # print(dec.size())
         dec = self.conv3b_t(self.activation(self.conv2_t(dec)))
-        # print(dec.size())
         dec = self.conv4b_t(self.activation(self.conv3_t(dec)))
-        # print(dec.size())
         dec = self.conv4_t(dec)
-        # print(dec.size())
         dec = self.adaPool(dec)
-        # print(dec.size())
 
         if apply_f:
             if return_dec:
@@ -470,181 +440,9 @@ class ConvAutoEncoderDNN(Base):
 
         return enc, nn, dec.view(dec.size(0), -1)
 
+    def forward_test(self, y, return_code=False, apply_f=True, return_res=False):
+        nn = self.Deep_FNN(y)
+        nn = self.Deep_FNN(y)
+        dec = self.Conv_decoder(nn, apply_f)
 
-#  DFNCAE: deep feedforward neural network and convolutional autoencoder
-class DFNCAE(torch.nn.Module):
-    def __init__(self, encoded_dimension, parameters, reduced_dimension):
-        super(DFNCAE, self).__init__()
-
-        # Here we define the hyperparameter required for the network architecture
-        self.num_layers = 10  # These are the layers for the feedforward neural network
-        self.num_neurons = 50  # Number of neurons for each hidden layer of feedforward network
-        self.size = 5  # Size of the convolutional kernel
-        self.n = encoded_dimension  # Encoded dimension for the convolutional encoder
-        self.n_h = 2  # This is the size of the input after the last convolutional layer in encoder
-        self.params = parameters  # These are the number of parameters for the feedforward neural network
-        self.N = reduced_dimension  # This is the reduced dimension of the Full order model
-
-        # Encoder layers which take in the input of size corresponding to 'N' and reduce it to encoded dimension 'n'
-        self.conv1 = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=1, out_channels=8, kernel_size=(self.size, self.size), stride=(1, 1),
-                            padding='same'),
-            torch.nn.ELU()
-        )
-        self.conv1b = torch.nn.BatchNorm2d(8)
-        self.conv2 = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=8, out_channels=16, kernel_size=(self.size, self.size), stride=(2, 2),
-                            padding=(2, 2)),
-            torch.nn.ELU()
-        )
-        self.conv2b = torch.nn.BatchNorm2d(16)
-        self.conv3 = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=16, out_channels=32, kernel_size=(self.size, self.size), stride=(2, 2),
-                            padding=(2, 2)),
-            torch.nn.ELU()
-        )
-        self.conv3b = torch.nn.BatchNorm2d(32)
-        self.conv4 = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(self.size, self.size), stride=(2, 2),
-                            padding=(2, 2)),
-            torch.nn.ELU()
-        )
-        self.conv4b = torch.nn.BatchNorm2d(64)
-
-        num_channels_last_layer = 64
-        feature_dim_encoding = 2 * 2 * num_channels_last_layer
-        self.fc1 = torch.nn.Linear(in_features=feature_dim_encoding, out_features=64)
-        torch.nn.init.xavier_uniform_(self.fc1.weight)
-        self.layer5 = torch.nn.Sequential(
-            self.fc1,
-            torch.nn.ELU()
-        )
-        self.layer5b = torch.nn.BatchNorm1d(64)
-        self.fc2 = torch.nn.Linear(in_features=64, out_features=self.n)
-        self.layer6 = torch.nn.Sequential(
-            self.fc2,
-            torch.nn.ELU()
-        )
-        self.layer6b = torch.nn.BatchNorm1d(self.n)
-
-        # Feedforward layers for modelling dynamics on the nonlinear manifold
-        self.feed_forward_layers = torch.nn.Sequential(
-            torch.nn.Linear(in_features=self.params, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=10),
-            torch.nn.ELU(),
-            torch.nn.Linear(in_features=10, out_features=self.n)
-        )
-        self.feed_forward_layersb = torch.nn.BatchNorm1d(self.n)
-
-        # Decoder layers that take in the dimension 'n' and expands it to N
-        self.fc1_t = torch.nn.Linear(in_features=self.n, out_features=64)
-        torch.nn.init.xavier_uniform_(self.fc1_t.weight)
-        self.layer1_t = torch.nn.Sequential(
-            self.fc1_t,
-            torch.nn.ELU()
-        )
-        self.layer1b_t = torch.nn.BatchNorm1d(64)
-        self.fc2_t = torch.nn.Linear(in_features=64, out_features=self.N)
-        torch.nn.init.xavier_uniform_(self.fc2_t.weight)
-        self.layer2_t = torch.nn.Sequential(
-            self.fc2_t,
-            torch.nn.ELU()
-        )
-        self.layer2b_t = torch.nn.BatchNorm1d(self.N)
-
-        self.conv1_t = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=(self.size, self.size), stride=(2, 2),
-                                     padding=(2, 2), output_padding=(1, 1)),
-            torch.nn.ELU()
-        )
-        self.conv1b_t = torch.nn.BatchNorm2d(64)
-        self.conv2_t = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=(self.size, self.size), stride=(2, 2),
-                                     padding=(2, 2), output_padding=(1, 1)),
-            torch.nn.ELU()
-        )
-        self.conv2b_t = torch.nn.BatchNorm2d(32)
-        self.conv3_t = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=(self.size, self.size), stride=(2, 2),
-                                     padding=(2, 2), output_padding=(1, 1)),
-            torch.nn.ELU()
-        )
-        self.conv3b_t = torch.nn.BatchNorm2d(16)
-        self.conv4_t = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=16, out_channels=1, kernel_size=(self.size, self.size), stride=(1, 1),
-                                     padding=(2, 2)),
-            torch.nn.ELU()
-        )
-        self.conv4b_t = torch.nn.BatchNorm2d(1)
-
-    def forward(self, x, y):
-        # Encoder part
-        outConvEnc = self.conv1(x)
-        outConvEnc = self.conv1b(outConvEnc)
-
-        outConvEnc = self.conv2(outConvEnc)
-        outConvEnc = self.conv2b(outConvEnc)
-
-        outConvEnc = self.conv3(outConvEnc)
-        outConvEnc = self.conv3b(outConvEnc)
-
-        outConvEnc = self.conv4(outConvEnc)
-        outConvEnc = self.conv4b(outConvEnc)
-
-        outConvEnc = outConvEnc.view(outConvEnc.size(0), -1)
-
-        outConvEnc = self.layer5(outConvEnc)
-        outConvEnc = self.layer5b(outConvEnc)
-
-        outConvEnc = self.layer6(outConvEnc)
-        outConvEnc = self.layer6b(outConvEnc)
-
-        # Feed forward part
-        outNN = self.feed_forward_layers(y)
-        outNN = self.feed_forward_layersb(outNN)
-
-        # Decoder part
-        outConvDec = self.layer1_t(outNN)
-        outConvDec = self.layer1b_t(outConvDec)
-
-        outConvDec = self.layer2_t(outConvDec)
-        outConvDec = self.layer2b_t(outConvDec)
-
-        outConvDec = torch.reshape(outConvDec, shape=[-1, 64, self.n_h, self.n_h])
-
-        outConvDec = self.conv1_t(outConvDec)
-        outConvDec = self.conv1b_t(outConvDec)
-
-        outConvDec = self.conv2_t(outConvDec)
-        outConvDec = self.conv2b_t(outConvDec)
-
-        outConvDec = self.conv3_t(outConvDec)
-        outConvDec = self.conv3b_t(outConvDec)
-
-        outConvDec = self.conv4_t(outConvDec)
-        outConvDec = self.conv4b_t(outConvDec)
-
-        enc = outConvEnc
-        nn = outNN
-        dec = outConvDec.view(outConvDec.size(0), -1)
-
-        return enc, nn, dec
+        return nn, dec.view(dec.size(0), -1)

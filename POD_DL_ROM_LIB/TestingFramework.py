@@ -1,17 +1,7 @@
 import Helper
 import numpy as np
-import time
 import torch
-import matplotlib.pyplot as plt
 import os
-
-try:
-    import tensorboard
-except ImportError as e:
-    TB_MODE = False
-else:
-    TB_MODE = True
-    from torch.utils.tensorboard import SummaryWriter
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -47,7 +37,6 @@ class TestingFramework(object):
 
         self.device = device
         self.logs_folder = log_folder
-        self.tensorboard = None
         self.time_amplitude_test_output = None
 
         # We perform an 80-20 split for the training and validation set
@@ -84,11 +73,6 @@ class TestingFramework(object):
                     self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
                     self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, :self.num_training_samples])
 
-            self.snapshot_test_test = np.zeros((self.num_dimension * self.N, self.num_test_samples))
-            for i in range(self.num_dimension):
-                self.snapshot_test_test[i * self.N:(i + 1) * self.N, :] = np.matmul(
-                    self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
-                    self.snapshot_test[i * self.N_h:(i + 1) * self.N_h, :])
         else:
             perm_id = np.random.RandomState(seed=42).permutation(self.time_amplitude_train.shape[1])
             self.time_amplitude_train = self.time_amplitude_train[:, perm_id]
@@ -97,9 +81,6 @@ class TestingFramework(object):
             self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
             self.snapshot_train_train = self.time_amplitude_train[:, :self.num_training_samples]
 
-            self.snapshot_test_test = np.zeros((self.num_dimension * self.N, self.num_test_samples))
-            self.snapshot_test_test = self.time_amplitude_test
-
         if self.scaling:
             self.snapshot_max, self.snapshot_min = Helper.max_min_componentwise(self.snapshot_train_train,
                                                                                 self.num_training_samples,
@@ -107,42 +88,25 @@ class TestingFramework(object):
             self.parameter_max, self.parameter_min = Helper.max_min_componentwise_params(self.parameter_train,
                                                                                          self.num_training_samples,
                                                                                          self.parameter_train.shape[0])
-            Helper.scaling_componentwise(self.snapshot_test_test, self.snapshot_max, self.snapshot_min,
-                                         self.num_dimension, self.N)
             Helper.scaling_componentwise_params(self.parameter_test, self.parameter_max, self.parameter_min,
                                                 self.parameter_test.shape[0])
+
         pass
 
     def testing_pipeline(self):
         # We build our input testing pipeline with the help of dataloader
         # We transpose our data for simplicity purpose
-        self.snapshot_test_test = np.transpose(self.snapshot_test_test)
         self.parameter_test = np.transpose(self.parameter_test)
 
-        X = torch.from_numpy(self.snapshot_test_test).float()  # intrinsic coordinates - u_N
         y = torch.from_numpy(self.parameter_test).float()  # params - (mu, t)
 
-        if self.typeConv == '2D':
-            X = torch.reshape(X, shape=[-1, self.num_dimension,
-                                        int(np.sqrt(self.N)), int(np.sqrt(self.N))])
-        elif self.typeConv == '1D':
-            X = torch.reshape(X, shape=[-1, self.num_dimension, self.N])
-        else:
-            X = torch.reshape(X, shape=[-1, self.num_dimension,
-                                        int(np.sqrt(self.N)), int(np.sqrt(self.N))])
-
-        dataset_test = torch.utils.data.TensorDataset(X, y)
+        dataset_test = torch.utils.data.TensorDataset(y)
         self.testing_loader = torch.utils.data.DataLoader(dataset_test, batch_size=self.batch_size, shuffle=False,
                                                           num_workers=0)
-        pass
-
-    def testing_loss(self, output, u_N):
-        self.loss = self.omega_h * torch.mean(torch.sum(torch.pow(output - u_N, 2), dim=1))
 
         pass
 
     def testing(self, log_folder_base=''):
-        start_time = time.time()
 
         log_folder_trained_model = './trained_models/' + log_folder_base
         if not os.path.isdir(log_folder_trained_model):
@@ -154,31 +118,17 @@ class TestingFramework(object):
         self.testing_data_preparation()
         self.testing_pipeline()
 
-        self.test_output = np.zeros_like(self.snapshot_test_test)
-        testLoss = 0
-        nBatches = 0
+        self.test_output = None
         self.model.eval()
         # Loop over mini batches of data
         with torch.no_grad():
-            for batch_idx, (snapshot_data, parameters) in enumerate(self.testing_loader):
-                # Forward pass for the validation data
-                self.enc, self.nn, self.dec = self.model(snapshot_data, parameters)
-                self.test_output[nBatches * self.batch_size:(nBatches + 1) * self.batch_size, :] = self.dec
-
-                # Calculate the loss function corresponding to the outputs
-                self.testing_loss(snapshot_data.view(snapshot_data.size(0), -1), self.dec)
-
-                # Calculate the validation losses
-                testLoss += self.loss
-                nBatches += 1
-
-        time_evolution_error = np.sqrt(np.mean(np.linalg.norm(self.snapshot_test_test - self.test_output, 2, axis=1) ** 2)) / \
-                np.sqrt(np.mean(np.linalg.norm(self.snapshot_test_test, 2, axis=1) ** 2))
-        # Display model progress on the current validation set
-        print('Testing batch Info...')
-        print('Average loss on testing set: {0}'.format(testLoss / nBatches))
-        print('Time evolution loss for the testing set: {0}'.format(time_evolution_error))
-        print('Took: {0} seconds'.format(time.time() - start_time))
+            for batch_idx, parameters in enumerate(self.testing_loader):
+                # Forward pass for the testing data
+                self.nn, self.dec = self.model.forward_test(parameters[0])
+                if batch_idx == 0:
+                    self.test_output = np.asarray(self.dec)
+                else:
+                    self.test_output = np.concatenate((self.test_output, self.dec))
 
         if self.scaling:
             Helper.inverse_scaling_componentwise(self.test_output, self.snapshot_max, self.snapshot_min,
@@ -187,32 +137,5 @@ class TestingFramework(object):
                                                         self.parameter_test.shape[1])
 
         self.time_amplitude_test_output = self.test_output.transpose()
-        # num_instances = self.snapshot_test.shape[1] // self.num_time_steps
-        # err = np.zeros((num_instances, 1))
-        # SnapMat = np.zeros_like(self.snapshot_test)
-        # self.test_output_transpose = self.test_output.transpose()
-        # for i in range(num_instances):
-        #     for j in range(self.num_dimension):
-        #         SnapMat[j * self.N_h:(j + 1) * self.N_h, i * self.num_time_steps:(i + 1) * self.num_time_steps] = \
-        #             np.matmul(self.U[j * self.N_h:(j + 1) * self.N_h, :],
-        #                       self.test_output_transpose[j * self.N:(j + 1) * self.N,
-        #                       i * self.num_time_steps:(i + 1) * self.num_time_steps])
-        #     num = np.sqrt(np.mean(np.linalg.norm(
-        #         self.snapshot_test[:, i * self.num_time_steps:(i + 1) * self.num_time_steps] -
-        #         SnapMat[:, i * self.num_time_steps:(i + 1) * self.num_time_steps], 2, axis=1) ** 2))
-        #     den = np.sqrt(np.mean(np.linalg.norm(
-        #         self.snapshot_test[:, i * self.num_time_steps:(i + 1) * self.num_time_steps], 2, axis=1) ** 2))
-        #     err[i] = num / den
-        # print('Relative error indicator: {0}'.format(np.mean(err)))
-        #
-        # X = np.linspace(0, 1000, 1000)
-        # t = self.parameter_test[0:self.num_time_steps, 1]
-        # [X_grid, t_grid] = np.meshgrid(X, t)
-        # X_grid = X_grid.T
-        # t_grid = t_grid.T
-        # plt.pcolormesh(X_grid, t_grid, SnapMat)
-        # # plt.plot(t, self.snapshot_test_test[:, 3])
-        # # plt.plot(t, self.test_output[:, 3])
-        # plt.show()
 
         pass
