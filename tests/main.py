@@ -1,9 +1,12 @@
 import numpy as np
 import sys
+import pathlib
+import os
 
 sys.path.append('./../POD_DL_ROM_LIB/')
 
 from TrainingFramework import TrainingFramework
+from TestingFramework import TestingFramework
 
 
 def generate():
@@ -107,7 +110,31 @@ if __name__ == '__main__':
     }
 
     POD_DL_ROM = TrainingFramework(params)
-    POD_DL_ROM.training(5)
+    POD_DL_ROM.training(epochs=5, val_every=1, save_every=1, print_every=1)
 
-    # TESTING = TestingFramework(params)
-    # TESTING.testing()
+    testing_method = 'weight_based'
+    if testing_method == 'model_based':
+        log_folder_base = 'trained_models/'
+        num_frame_models = 3
+        log_folder_trained_model = []
+        for num_frame in range(num_frame_models):
+            f = sorted(pathlib.Path(log_folder_base).glob('*/'), key=os.path.getmtime)[-(num_frame + 1)]
+            log_folder_trained_model.append(f)
+        log_folder_trained_model.reverse()
+
+        for folder_name in log_folder_trained_model:
+            TESTING = TestingFramework(params)
+            TESTING.testing(log_folder_trained_model=str(folder_name), testing_method='model_based')
+    else:
+        log_folder_base = 'training_results_local/'
+        num_frame_models = 1
+        log_folder_trained_model = []
+        for num_frame in range(num_frame_models):
+            f = sorted(pathlib.Path(log_folder_base).glob('*/'), key=os.path.getmtime)[-(num_frame + 1)]
+            log_folder_trained_model.append(f)
+        log_folder_trained_model.reverse()
+
+        for folder_name in log_folder_trained_model:
+            TESTING = TestingFramework(params)
+            TESTING.testing(log_folder_trained_model=str(folder_name), testing_method='weight_based')
+

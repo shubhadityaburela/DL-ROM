@@ -4,7 +4,6 @@ import numpy as np
 import torch.cuda
 from scipy import linalg
 from sklearn.utils import extmath
-import time
 from shutil import copy2 as copy_file
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -19,26 +18,26 @@ def padding(Mat, n):
 
 
 def PerformSVD(Mat, N, N_h, num_dim):
-    print('Computing exact POD...')
+    # print('Computing exact POD...')
     U = np.zeros((num_dim * N_h, N))
-    start_time = time.time()
+    # start_time = time.time()
     for i in range(num_dim):
         U, Sigma, Vh = linalg.svd(Mat[i * N_h:(i + 1) * N_h, :], full_matrices=False,
                                   overwrite_a=False, check_finite=False, lapack_driver='gesvd')
-    print('Done... Took: {0} seconds'.format(time.time() - start_time))
+    # print('Done... Took: {0} seconds'.format(time.time() - start_time))
 
     return U[:, :N]
 
 
 def PerformRandomizedSVD(Mat, N, N_h, num_dim):
-    print('Computing randomized POD...')
+    # print('Computing randomized POD...')
     U = np.zeros((num_dim * N_h, N))
-    start_time = time.time()
+    # start_time = time.time()
     for i in range(num_dim):
         U[i * N_h:(i + 1) * N_h], Sigma, Vh = extmath.randomized_svd(Mat[i * N_h:(i + 1) * N_h, :],
                                                                      n_components=N, transpose=False,
                                                                      flip_sign=False, random_state=123)
-    print('Done: computed matrix V of shape {0}... Took: {1} seconds'.format(U.shape, time.time() - start_time))
+    # print('Done: computed matrix V of shape {0}... Took: {1} seconds'.format(U.shape, time.time() - start_time))
 
     return U
 
@@ -99,7 +98,7 @@ def inverse_scaling_componentwise_params(Mat, Mat_max, Mat_min, n_components):
 
 def save_codeBase(source_path, dest_path):
     source_path = source_path if source_path.endswith('/') else source_path + '/'
-    dest_path = dest_path + '\code' if dest_path.endswith('/') else dest_path + '/code/'
+    dest_path = dest_path + 'code/' if dest_path.endswith('/') else dest_path + '/code/'
     if not os.path.isdir(dest_path):
         os.makedirs(dest_path)
     for fname in os.listdir(source_path):

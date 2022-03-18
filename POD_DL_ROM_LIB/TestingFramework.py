@@ -2,12 +2,13 @@ import Helper
 import numpy as np
 import torch
 import os
+from NetworkModel import ConvAutoEncoderDNN
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class TestingFramework(object):
-    def __init__(self, params, device=DEVICE, log_folder='./testing_results_local/') -> None:
+    def __init__(self, params, device=DEVICE) -> None:
 
         self.FOM = params['FOM']
         self.snapshot_train = params['snapshot_train']
@@ -36,7 +37,6 @@ class TestingFramework(object):
         self.typeConv = params['typeConv']
 
         self.device = device
-        self.logs_folder = log_folder
         self.time_amplitude_test_output = None
 
         # We perform an 80-20 split for the training and validation set
@@ -106,14 +106,29 @@ class TestingFramework(object):
 
         pass
 
-    def testing(self, log_folder_base=''):
+    def testing(self, log_folder_trained_model='', testing_method='model_based'):
 
-        log_folder_trained_model = './trained_models/' + log_folder_base
-        if not os.path.isdir(log_folder_trained_model):
-            print('The trained model is not present in the log folder named trained_models')
-            exit()
+        if testing_method == 'model_based':
+            if not os.path.isdir(log_folder_trained_model):
+                print('The trained model is not present in the log folder named trained_models')
+                exit()
+            else:
+                self.model = torch.load(log_folder_trained_model + '/' + 'model.pth')
         else:
-            self.model = torch.load(log_folder_trained_model + 'model.pth')
+            if not os.path.isdir(log_folder_trained_model):
+                print('The trained model is not present in the log folder named trained_results_local')
+                exit()
+            else:
+                # Instantiate the model
+                if self.typeConv == '2D':
+                    conv_shape = (int(np.sqrt(self.N)), int(np.sqrt(self.N)))
+                elif self.typeConv == '1D':
+                    conv_shape = self.N
+                else:
+                    conv_shape = (int(np.sqrt(self.N)), int(np.sqrt(self.N)))
+                self.model = ConvAutoEncoderDNN(conv_shape=conv_shape, num_params=self.num_parameters,
+                                                typeConv=self.typeConv)
+                self.model.load_net_weights(log_folder_trained_model + '/net_weights/' + 'best_results.pt')
 
         self.testing_data_preparation()
         self.testing_pipeline()

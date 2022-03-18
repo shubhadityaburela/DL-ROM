@@ -3,6 +3,7 @@ import numpy as np
 import time
 import torch
 import os
+import matplotlib.pyplot as plt
 from NetworkModel import ConvAutoEncoderDNN
 
 try:
@@ -17,7 +18,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class TrainingFramework(object):
-    def __init__(self, params, device=DEVICE, log_folder='./training_results_local/') -> None:
+    def __init__(self, params, split=0.8, device=DEVICE, log_folder='./training_results_local/') -> None:
 
         self.FOM = params['FOM']
         self.snapshot_train = params['snapshot_train']
@@ -77,7 +78,7 @@ class TrainingFramework(object):
         self.inputsForGraphVis = None
 
         # We perform an 80-20 split for the training and validation set
-        self.num_training_samples = int(0.8 * self.num_samples)
+        self.num_training_samples = int(split * self.num_samples)
 
     def data_preparation(self):
         print('DATA PREPARATION START...\n')
@@ -119,7 +120,8 @@ class TrainingFramework(object):
                     self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, self.num_training_samples:])
         else:
             self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
-            self.snapshot_train_val = np.zeros((self.num_dimension * self.N, self.num_samples - self.num_training_samples))
+            self.snapshot_train_val = np.zeros(
+                (self.num_dimension * self.N, self.num_samples - self.num_training_samples))
 
             perm_id = np.random.RandomState(seed=42).permutation(self.time_amplitude_train.shape[1])
             self.time_amplitude_train = self.time_amplitude_train[:, perm_id]
@@ -205,17 +207,15 @@ class TrainingFramework(object):
 
         pass
 
-    def training(self, epochs=10000, val_every=1, save_every=1, log_base_name=''):
+    def training(self, epochs=10000, val_every=100, save_every=100, print_every=10, fig_save_every=500, log_base_name=''):
         self.data_preparation()
         self.input_pipeline()
 
-        log_folder = self.logs_folder + log_base_name + time.strftime("%Y_%m_%d__%H-%M", time.localtime()) + '/'
+        log_folder = self.logs_folder + log_base_name + time.strftime("%Y_%m_%d__%H-%M-%S", time.localtime()) + '/'
         if not os.path.isdir(log_folder):
             os.makedirs(log_folder)
 
-        self.tensorboard = SummaryWriter() if TB_MODE else None
-        # webbrowser.open('http://localhost:6006')
-        # os.system('tensorboard --logdir=runs')
+        self.tensorboard = SummaryWriter(log_dir=log_folder + '/runs/') if TB_MODE else None
         Helper.save_codeBase(os.getcwd(), log_folder)
 
         # Instantiate the model
@@ -226,15 +226,9 @@ class TrainingFramework(object):
         else:
             conv_shape = (int(np.sqrt(self.N)), int(np.sqrt(self.N)))
         self.model = ConvAutoEncoderDNN(conv_shape=conv_shape, num_params=self.num_parameters, typeConv=self.typeConv)
-        # print(self.model)
-
-        # Save the model graph in tensorboard
-        # trainWriter.add_graph(self.model, self.inputsForGraphVis)
 
         # Instantiate the optimizer
         self.opt = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        # print(len(list(self.model.parameters())))
-        # print(list(self.model.parameters())[0].size())
 
         # Here we apply the epoch looping throughout the mini batches
         self.best_so_far = 1e12  # For early stopping criteria
@@ -276,16 +270,12 @@ class TrainingFramework(object):
                 self.model.save_network_weights(filePath=log_folder + 'net_weights/', fileName='epoch_' + str(epoch)
                                                                                                + '.pt')
             # Display model progress on the current training set
-            print('Training batch Info...')
-            print('Average loss_h at epoch {0} on training set: {1}'.format(epoch, trainLoss_h / nBatches))
-            print('Average loss_N at epoch {0} on training set: {1}'.format(epoch, trainLoss_N / nBatches))
-            print('Average loss at epoch {0} on training set: {1}'.format(epoch, trainLoss / nBatches))
-            print('Took: {0} seconds'.format(time.time() - start_time))
-
-            if self.tensorboard:
-                self.tensorboard.add_scalar('Average train_loss_h', trainLoss_h / nBatches, epoch)
-                self.tensorboard.add_scalar('Average train_loss_N', trainLoss_N / nBatches, epoch)
-                self.tensorboard.add_scalar('Average train loss', trainLoss / nBatches, epoch)
+            if (epoch + 1) % print_every == 0:
+                print('Training batch Info...')
+                print('Average loss_h at epoch {0} on training set: {1}'.format(epoch, trainLoss_h / nBatches))
+                print('Average loss_N at epoch {0} on training set: {1}'.format(epoch, trainLoss_N / nBatches))
+                print('Average loss at epoch {0} on training set: {1}'.format(epoch, trainLoss / nBatches))
+                print('Took: {0} seconds'.format(time.time() - start_time))
 
             # VALIDATION SECTION.............................
             start_time = time.time()
@@ -315,7 +305,7 @@ class TrainingFramework(object):
                     nBatches += 1
                 valLoss_mean = valLoss / nBatches
 
-            if (epoch + 1) % val_every:
+            if (epoch + 1) % val_every == 0:
                 validation_loss_log.append([valLoss / nBatches, epoch])
                 reco_error = torch.norm(input_data - output_data, p='fro') / torch.norm(input_data, p='fro')
                 if reco_error < self.best_so_far:
@@ -325,18 +315,26 @@ class TrainingFramework(object):
                     f.write(f"epoch:{epoch}; Error: {reco_error:.3e}")
                     f.close()
                 if self.tensorboard:
-                    pass  # TO BE DONE#####################################
-            # Display model progress on the current validation set
-            print('Validation batch Info...')
-            print('Average loss_h at epoch {0} on validation set: {1}'.format(epoch, valLoss_h / nBatches))
-            print('Average loss_N at epoch {0} on validation set: {1}'.format(epoch, valLoss_N / nBatches))
-            print('Average loss at epoch {0} on validation set: {1}'.format(epoch, valLoss / nBatches))
-            print('Took: {0} seconds\n'.format(time.time() - start_time))
+                    if (epoch + 1) % fig_save_every == 0:
+                        fig_reco = self.plot_val_idx_reco(torch.transpose(output_data, 0, 1))
+                        self.tensorboard.add_figure('reconstruction', fig_reco, global_step=epoch, close=True)
+                    self.tensorboard.add_scalar('Average train_loss_h', trainLoss_h / nBatches, epoch)
+                    self.tensorboard.add_scalar('Average train_loss_N', trainLoss_N / nBatches, epoch)
+                    self.tensorboard.add_scalar('Average train loss', trainLoss / nBatches, epoch)
 
-            if self.tensorboard:
-                self.tensorboard.add_scalar('Average val_loss_h', valLoss_h / nBatches, epoch)
-                self.tensorboard.add_scalar('Average val_loss_N', valLoss_N / nBatches, epoch)
-                self.tensorboard.add_scalar('Average val loss', valLoss / nBatches, epoch)
+                    self.tensorboard.add_scalar('Average val_loss_h', valLoss_h / nBatches, epoch)
+                    self.tensorboard.add_scalar('Average val_loss_N', valLoss_N / nBatches, epoch)
+                    self.tensorboard.add_scalar('Average val loss', valLoss / nBatches, epoch)
+
+                    self.tensorboard.add_scalar('Relative reconstruction error', reco_error, epoch)
+
+            # Display model progress on the current validation set
+            if (epoch + 1) % print_every == 0:
+                print('Validation batch Info...')
+                print('Average loss_h at epoch {0} on validation set: {1}'.format(epoch, valLoss_h / nBatches))
+                print('Average loss_N at epoch {0} on validation set: {1}'.format(epoch, valLoss_N / nBatches))
+                print('Average loss at epoch {0} on validation set: {1}'.format(epoch, valLoss / nBatches))
+                print('Took: {0} seconds\n'.format(time.time() - start_time))
 
             if valLoss_mean < self.best_so_far:
                 self.best_so_far = valLoss_mean
@@ -352,10 +350,43 @@ class TrainingFramework(object):
         if self.tensorboard:
             self.tensorboard.close()
 
-        log_folder_trained_model = './trained_models/' + log_base_name + time.strftime("%Y_%m_%d__%H-%M-%S", time.localtime()) + '/'
+        log_folder_trained_model = './trained_models/' + log_base_name + time.strftime("%Y_%m_%d__%H-%M-%S",
+                                                                                       time.localtime()) + '/'
         if not os.path.isdir(log_folder_trained_model):
             os.makedirs(log_folder_trained_model)
 
         torch.save(self.model, log_folder_trained_model + 'model.pth')
 
         pass
+
+    def plot_val_idx_reco(self, reco, plot_idx=None):
+        plot_idx = np.random.randint(self.snapshot_train_val.transpose().shape[0]) if plot_idx is None else plot_idx
+        truth = Helper.to_torch(self.snapshot_train_val.transpose()[[plot_idx], ...], self.device)
+
+        return plot_reconstruction(truth, reco)
+
+
+def plot_reconstruction(truth, reco, phi=None):
+    p1 = (phi is not None) * 1
+    fig, axes = plt.subplots(1, 3 + p1, num=0, figsize=[19.2, 3.6])
+    dims_remove = [0] * (truth.ndim - 2) + [...]
+    if p1:
+        pc = axes[0].imshow(phi[dims_remove].to('cpu').T, origin='lower')
+        plt.colorbar(pc, ax=axes[0])
+        axes[0].set_title('$ \phi $')
+        axes[0].axis('equal')
+    pc = axes[0 + p1].imshow(reco[dims_remove].to('cpu').T, origin='lower')
+    axes[0 + p1].set_title('$ \^q $')
+    axes[0 + p1].axis('equal')
+    plt.colorbar(pc, ax=axes[0 + p1])
+    pc = axes[1 + p1].imshow(truth[dims_remove].to('cpu').T, origin='lower')
+    plt.colorbar(pc, ax=axes[1 + p1])
+    axes[1 + p1].set_title('$ q $')
+    axes[1 + p1].axis('equal')
+    pc = axes[2 + p1].imshow((reco - truth)[dims_remove].abs().to('cpu').T, origin='lower')
+    plt.colorbar(pc, ax=axes[2 + p1])
+    axes[2 + p1].set_title('$| \^q - q |$')
+    axes[2 + p1].axis('equal')
+
+    return fig
+

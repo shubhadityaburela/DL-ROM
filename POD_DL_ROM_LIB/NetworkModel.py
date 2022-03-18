@@ -442,7 +442,6 @@ class ConvAutoEncoderDNN(Base):
 
     def forward_test(self, y, return_code=False, apply_f=True, return_res=False):
         nn = self.Deep_FNN(y)
-        nn = self.Deep_FNN(y)
         dec = self.Conv_decoder(nn, apply_f)
 
         return nn, dec.view(dec.size(0), -1)
