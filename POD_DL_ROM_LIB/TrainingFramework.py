@@ -207,13 +207,18 @@ class TrainingFramework(object):
 
         pass
 
-    def training(self, epochs=10000, val_every=100, save_every=100, print_every=10, fig_save_every=500, log_base_name=''):
+    def training(self, epochs=10000, val_every=100, save_every=100, print_every=10, fig_save_every=500,
+                 log_base_name=''):
         self.data_preparation()
         self.input_pipeline()
 
         log_folder = self.logs_folder + log_base_name + time.strftime("%Y_%m_%d__%H-%M-%S", time.localtime()) + '/'
         if not os.path.isdir(log_folder):
             os.makedirs(log_folder)
+
+        log_folder_trained_model = log_folder + '/trained_models/'
+        if not os.path.isdir(log_folder_trained_model):
+            os.makedirs(log_folder_trained_model)
 
         self.tensorboard = SummaryWriter(log_dir=log_folder + '/runs/') if TB_MODE else None
         Helper.save_codeBase(os.getcwd(), log_folder)
@@ -251,7 +256,6 @@ class TrainingFramework(object):
 
                 # Forward pass to get the outputs and calculate the loss
                 self.enc, self.nn, self.dec = self.model(snapshot_data, parameters)
-                # print(self.enc.size()), print(self.nn.size()), print(self.dec.size())
 
                 self.loss_function(snapshot_data)
 
@@ -311,6 +315,7 @@ class TrainingFramework(object):
                 if reco_error < self.best_so_far:
                     self.best_so_far = reco_error
                     self.model.save_network_weights(filePath=log_folder + 'net_weights/', fileName='best_results.pt')
+                    torch.save(self.model, log_folder_trained_model + 'model.pth')
                     f = open(log_folder + 'net_weights/best_results.txt', 'w')
                     f.write(f"epoch:{epoch}; Error: {reco_error:.3e}")
                     f.close()
@@ -350,13 +355,6 @@ class TrainingFramework(object):
         if self.tensorboard:
             self.tensorboard.close()
 
-        log_folder_trained_model = './trained_models/' + log_base_name + time.strftime("%Y_%m_%d__%H-%M-%S",
-                                                                                       time.localtime()) + '/'
-        if not os.path.isdir(log_folder_trained_model):
-            os.makedirs(log_folder_trained_model)
-
-        torch.save(self.model, log_folder_trained_model + 'model.pth')
-
         pass
 
     def plot_val_idx_reco(self, reco, plot_idx=None):
@@ -389,4 +387,3 @@ def plot_reconstruction(truth, reco, phi=None):
     axes[2 + p1].axis('equal')
 
     return fig
-

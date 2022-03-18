@@ -110,11 +110,11 @@ if __name__ == '__main__':
     }
 
     POD_DL_ROM = TrainingFramework(params)
-    POD_DL_ROM.training(epochs=5, val_every=1, save_every=1, print_every=1)
+    POD_DL_ROM.training(epochs=5, val_every=1, save_every=1, print_every=10)
 
-    testing_method = 'weight_based'
+    testing_method = 'model_based'
     if testing_method == 'model_based':
-        log_folder_base = 'trained_models/'
+        log_folder_base = 'training_results_local/'
         num_frame_models = 3
         log_folder_trained_model = []
         for num_frame in range(num_frame_models):

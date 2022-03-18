@@ -18,26 +18,20 @@ def padding(Mat, n):
 
 
 def PerformSVD(Mat, N, N_h, num_dim):
-    # print('Computing exact POD...')
     U = np.zeros((num_dim * N_h, N))
-    # start_time = time.time()
     for i in range(num_dim):
         U, Sigma, Vh = linalg.svd(Mat[i * N_h:(i + 1) * N_h, :], full_matrices=False,
                                   overwrite_a=False, check_finite=False, lapack_driver='gesvd')
-    # print('Done... Took: {0} seconds'.format(time.time() - start_time))
 
     return U[:, :N]
 
 
 def PerformRandomizedSVD(Mat, N, N_h, num_dim):
-    # print('Computing randomized POD...')
     U = np.zeros((num_dim * N_h, N))
-    # start_time = time.time()
     for i in range(num_dim):
         U[i * N_h:(i + 1) * N_h], Sigma, Vh = extmath.randomized_svd(Mat[i * N_h:(i + 1) * N_h, :],
                                                                      n_components=N, transpose=False,
                                                                      flip_sign=False, random_state=123)
-    # print('Done: computed matrix V of shape {0}... Took: {1} seconds'.format(U.shape, time.time() - start_time))
 
     return U
 

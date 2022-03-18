@@ -113,7 +113,7 @@ class TestingFramework(object):
                 print('The trained model is not present in the log folder named trained_models')
                 exit()
             else:
-                self.model = torch.load(log_folder_trained_model + '/' + 'model.pth')
+                self.model = torch.load(log_folder_trained_model + '/trained_models/' + 'model.pth')
         else:
             if not os.path.isdir(log_folder_trained_model):
                 print('The trained model is not present in the log folder named trained_results_local')
