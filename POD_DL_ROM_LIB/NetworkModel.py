@@ -118,32 +118,32 @@ class DeepFeedForwardNetwork(Base):
         self.ff1 = torch.nn.Linear(in_features=self.num_params, out_features=self.num_neurons)
         self.ff1b = torch.nn.BatchNorm1d(self.num_neurons)
 
-        # self.ff2 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        # self.ff2b = torch.nn.BatchNorm1d(self.num_neurons)
+        self.ff2 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff2b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff3 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff3drop = torch.nn.Dropout(p=0.2)
+        self.ff3drop = torch.nn.Dropout(p=0.1)
         self.ff3b = torch.nn.BatchNorm1d(self.num_neurons)
 
         # self.ff4 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
         # self.ff4b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff5 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff5drop = torch.nn.Dropout(p=0.2)
+        self.ff5drop = torch.nn.Dropout(p=0.1)
         self.ff5b = torch.nn.BatchNorm1d(self.num_neurons)
 
         # self.ff6 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
         # self.ff6b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff7 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff7drop = torch.nn.Dropout(p=0.2)
+        self.ff7drop = torch.nn.Dropout(p=0.1)
         self.ff7b = torch.nn.BatchNorm1d(self.num_neurons)
 
         # self.ff8 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
         # self.ff8b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff9 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff9drop = torch.nn.Dropout(p=0.2)
+        self.ff9drop = torch.nn.Dropout(p=0.1)
         self.ff9b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff10 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.n)
@@ -152,7 +152,7 @@ class DeepFeedForwardNetwork(Base):
 
     def forward(self, y, apply_f=False, return_nn=False):
         nn = self.ff1b(self.activation(self.ff1(y)))
-        # nn = self.ff2b(self.activation(self.ff2(nn)))
+        nn = self.ff2b(self.activation(self.ff2(nn)))
         nn = self.ff3b(self.activation(self.ff3drop(self.ff3(nn))))
         # nn = self.ff4b(self.activation(self.ff4(nn)))
         nn = self.ff5b(self.activation(self.ff5drop(self.ff5(nn))))
@@ -348,33 +348,45 @@ class ConvDecoder1D(Base):
         self.fc2_t = torch.nn.Linear(in_features=64, out_features=64 * int(self.conv_shape_list[-1]))
 
         self.conv1b_t = torch.nn.BatchNorm1d(64)
-        self.stride = 1
         self.kernel_size = self.k
+        self.stride = 1
         p = np.floor(((self.conv_shape_list[-1] - 1) * self.stride + self.k - self.conv_shape_list[-2]) / 2)
+        while p < 0:
+            self.stride = self.stride + 1
+            p = np.floor(((self.conv_shape_list[-1] - 1) * self.stride + self.k - self.conv_shape_list[-2]) / 2)
         self.padding = int(p)
         self.conv1_t = torch.nn.ConvTranspose1d(in_channels=64, out_channels=64, kernel_size=self.kernel_size,
                                                 stride=self.stride, padding=self.padding)
 
         self.conv2b_t = torch.nn.BatchNorm1d(64)
-        self.stride = 1
         self.kernel_size = self.k
+        self.stride = 1
         p = np.floor(((self.conv_shape_list[-2] - 1) * self.stride + self.k - self.conv_shape_list[-3]) / 2)
+        while p < 0:
+            self.stride = self.stride + 1
+            p = np.floor(((self.conv_shape_list[-2] - 1) * self.stride + self.k - self.conv_shape_list[-3]) / 2)
         self.padding = int(p)
         self.conv2_t = torch.nn.ConvTranspose1d(in_channels=64, out_channels=32, kernel_size=self.kernel_size,
                                                 stride=self.stride, padding=self.padding)
 
         self.conv3b_t = torch.nn.BatchNorm1d(32)
-        self.stride = 2
         self.kernel_size = self.k
+        self.stride = 2
         p = np.floor(((self.conv_shape_list[-3] - 1) * self.stride + self.k - self.conv_shape_list[-4]) / 2)
+        while p < 0:
+            self.stride = self.stride + 1
+            p = np.floor(((self.conv_shape_list[-3] - 1) * self.stride + self.k - self.conv_shape_list[-4]) / 2)
         self.padding = int(p)
         self.conv3_t = torch.nn.ConvTranspose1d(in_channels=32, out_channels=16, kernel_size=self.kernel_size,
                                                 stride=self.stride, padding=self.padding)
 
         self.conv4b_t = torch.nn.BatchNorm1d(16)
-        self.stride = 2
         self.kernel_size = self.k
+        self.stride = 2
         p = np.floor(((self.conv_shape_list[-4] - 1) * self.stride + self.k - self.conv_shape_list[-5]) / 2)
+        while p < 0:
+            self.stride = self.stride + 1
+            p = np.floor(((self.conv_shape_list[-4] - 1) * self.stride + self.k - self.conv_shape_list[-5]) / 2)
         self.padding = int(p)
         self.conv4_t = torch.nn.ConvTranspose1d(in_channels=16, out_channels=1, kernel_size=self.kernel_size,
                                                 stride=self.stride, padding=self.padding)
@@ -409,7 +421,7 @@ class ConvDecoder1D(Base):
 
 class ConvAutoEncoderDNN(Base):
     def __init__(self, encoder=None, df_nn=None, decoder=None, encoded_dimension=4, f=torch.nn.Sigmoid,
-                 conv_shape=(16, 16), num_params=2, typeConv='2D'):
+                 conv_shape=16, num_params=2, typeConv='2D'):
         super(self.__class__, self).__init__()
 
         self.typeConv = typeConv
@@ -419,7 +431,7 @@ class ConvAutoEncoderDNN(Base):
         elif self.typeConv == '1D':
             self.Conv_encoder = ConvEncoder1D(encoded_dimension, conv_shape) if encoder is None else encoder
         else:
-            self.Conv_encoder = ConvEncoder(encoded_dimension, conv_shape) if encoder is None else encoder
+            self.Conv_encoder = ConvEncoder1D(encoded_dimension, conv_shape) if encoder is None else encoder
 
         self.Deep_FNN = DeepFeedForwardNetwork(encoded_dimension, num_params) if df_nn is None else df_nn
 
@@ -430,7 +442,7 @@ class ConvAutoEncoderDNN(Base):
             self.Conv_decoder = ConvDecoder1D(encoded_dimension, f, conv_shape=self.Conv_encoder.conv_shape_list) \
                 if decoder is None else decoder
         else:
-            self.Conv_decoder = ConvDecoder(encoded_dimension, f, conv_shape=self.Conv_encoder.conv_shape_list) \
+            self.Conv_decoder = ConvDecoder1D(encoded_dimension, f, conv_shape=self.Conv_encoder.conv_shape_list) \
                 if decoder is None else decoder
 
     def forward(self, x, y, return_code=False, apply_f=True, return_res=False):

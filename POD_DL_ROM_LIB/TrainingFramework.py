@@ -178,10 +178,8 @@ class TrainingFramework(object):
             X_train = torch.reshape(X_train, shape=[-1, self.num_dimension, self.N])
             X_val = torch.reshape(X_val, shape=[-1, self.num_dimension, self.N])
         else:
-            X_train = torch.reshape(X_train, shape=[-1, self.num_dimension,
-                                                    int(np.sqrt(self.N)), int(np.sqrt(self.N))])
-            X_val = torch.reshape(X_val, shape=[-1, self.num_dimension,
-                                                int(np.sqrt(self.N)), int(np.sqrt(self.N))])
+            X_train = torch.reshape(X_train, shape=[-1, self.num_dimension, self.N])
+            X_val = torch.reshape(X_val, shape=[-1, self.num_dimension, self.N])
 
         dataset_train = torch.utils.data.TensorDataset(X_train, y_train)
         self.training_loader = torch.utils.data.DataLoader(dataset_train, batch_size=self.batch_size, shuffle=True,
@@ -207,7 +205,7 @@ class TrainingFramework(object):
 
         pass
 
-    def training(self, epochs=10000, val_every=100, save_every=100, print_every=10, fig_save_every=500,
+    def training(self, epochs=10000, save_every=100, print_every=10, fig_save_every=500,
                  log_base_name=''):
         self.data_preparation()
         self.input_pipeline()
@@ -229,7 +227,7 @@ class TrainingFramework(object):
         elif self.typeConv == '1D':
             conv_shape = self.N
         else:
-            conv_shape = (int(np.sqrt(self.N)), int(np.sqrt(self.N)))
+            conv_shape = self.N
         self.model = ConvAutoEncoderDNN(conv_shape=conv_shape, num_params=self.num_parameters, typeConv=self.typeConv)
 
         # Instantiate the optimizer
@@ -250,7 +248,7 @@ class TrainingFramework(object):
             nBatches = 0
             self.model.train()
             # Loop over the mini batches of data
-            for i, (snapshot_data, parameters) in enumerate(self.training_loader):
+            for batch_idx, (snapshot_data, parameters) in enumerate(self.training_loader):
                 # Clear gradients w.r.t parameters
                 self.opt.zero_grad()
 
@@ -287,17 +285,20 @@ class TrainingFramework(object):
             valLoss_N = 0
             valLoss = 0
             nBatches = 0
-            input_data = torch.zeros_like(torch.from_numpy(self.snapshot_train_val).float())
-            output_data = torch.zeros_like(input_data)
+            input_data = None
+            output_data = None
             self.model.eval()
             # Loop over mini batches of data
             with torch.no_grad():
-                for i, (snapshot_data, parameters) in enumerate(self.validation_loader):
+                for batch_idx, (snapshot_data, parameters) in enumerate(self.validation_loader):
                     # Forward pass for the validation data
                     self.enc, self.nn, self.dec = self.model(snapshot_data, parameters)
-                    input_data[nBatches * self.batch_size:(nBatches + 1) * self.batch_size, :] = \
-                        snapshot_data.view(snapshot_data.size(0), -1)
-                    output_data[nBatches * self.batch_size:(nBatches + 1) * self.batch_size, :] = self.dec
+                    if batch_idx == 0:
+                        input_data = snapshot_data.view(snapshot_data.size(0), -1)
+                        output_data = self.dec
+                    else:
+                        input_data = torch.cat((input_data, snapshot_data.view(snapshot_data.size(0), -1)), dim=0)
+                        output_data = torch.cat((output_data, self.dec), dim=0)
 
                     # Calculate the loss function corresponding to the outputs
                     self.loss_function(snapshot_data)
@@ -307,31 +308,29 @@ class TrainingFramework(object):
                     valLoss_N += self.loss_N
                     valLoss += self.loss
                     nBatches += 1
-                valLoss_mean = valLoss / nBatches
 
-            if (epoch + 1) % val_every == 0:
-                validation_loss_log.append([valLoss / nBatches, epoch])
-                reco_error = torch.norm(input_data - output_data, p='fro') / torch.norm(input_data, p='fro')
-                if reco_error < self.best_so_far:
-                    self.best_so_far = reco_error
-                    self.model.save_network_weights(filePath=log_folder + 'net_weights/', fileName='best_results.pt')
-                    torch.save(self.model, log_folder_trained_model + 'model.pth')
-                    f = open(log_folder + 'net_weights/best_results.txt', 'w')
-                    f.write(f"epoch:{epoch}; Error: {reco_error:.3e}")
-                    f.close()
-                if self.tensorboard:
-                    if (epoch + 1) % fig_save_every == 0:
-                        fig_reco = self.plot_val_idx_reco(torch.transpose(output_data, 0, 1))
-                        self.tensorboard.add_figure('reconstruction', fig_reco, global_step=epoch, close=True)
-                    self.tensorboard.add_scalar('Average train_loss_h', trainLoss_h / nBatches, epoch)
-                    self.tensorboard.add_scalar('Average train_loss_N', trainLoss_N / nBatches, epoch)
-                    self.tensorboard.add_scalar('Average train loss', trainLoss / nBatches, epoch)
+            validation_loss_log.append([valLoss / nBatches, epoch])
+            reco_error = torch.norm(input_data - output_data, p='fro') / torch.norm(input_data, p='fro')
+            if reco_error < self.best_so_far:
+                self.best_so_far = reco_error
+                self.model.save_network_weights(filePath=log_folder + 'net_weights/', fileName='best_results.pt')
+                torch.save(self.model, log_folder_trained_model + 'model.pth')
+                f = open(log_folder + 'net_weights/best_results.txt', 'w')
+                f.write(f"epoch:{epoch}; Error: {reco_error:.3e}")
+                f.close()
+            if self.tensorboard:
+                if (epoch + 1) % fig_save_every == 0:
+                    fig_reco = self.plot_val_idx_reco(torch.transpose(output_data, 0, 1))
+                    self.tensorboard.add_figure('reconstruction', fig_reco, global_step=epoch, close=True)
+                self.tensorboard.add_scalar('Average train_loss_h', trainLoss_h / nBatches, epoch)
+                self.tensorboard.add_scalar('Average train_loss_N', trainLoss_N / nBatches, epoch)
+                self.tensorboard.add_scalar('Average train loss', trainLoss / nBatches, epoch)
 
-                    self.tensorboard.add_scalar('Average val_loss_h', valLoss_h / nBatches, epoch)
-                    self.tensorboard.add_scalar('Average val_loss_N', valLoss_N / nBatches, epoch)
-                    self.tensorboard.add_scalar('Average val loss', valLoss / nBatches, epoch)
+                self.tensorboard.add_scalar('Average val_loss_h', valLoss_h / nBatches, epoch)
+                self.tensorboard.add_scalar('Average val_loss_N', valLoss_N / nBatches, epoch)
+                self.tensorboard.add_scalar('Average val loss', valLoss / nBatches, epoch)
 
-                    self.tensorboard.add_scalar('Relative reconstruction error', reco_error, epoch)
+                self.tensorboard.add_scalar('Relative reconstruction error', reco_error, epoch)
 
             # Display model progress on the current validation set
             if (epoch + 1) % print_every == 0:
@@ -341,15 +340,6 @@ class TrainingFramework(object):
                 print('Average loss at epoch {0} on validation set: {1}'.format(epoch, valLoss / nBatches))
                 print('Took: {0} seconds\n'.format(time.time() - start_time))
 
-            if valLoss_mean < self.best_so_far:
-                self.best_so_far = valLoss_mean
-                count = 0
-            else:
-                count += 1
-            # Early stopping criterion
-            if count == self.num_early_stop:
-                print('Stopped training due to early-stopping cross-validation')
-                break
         print('Best loss on validation set: {0}'.format(self.best_so_far))
 
         if self.tensorboard:

@@ -72,7 +72,6 @@ class TestingFramework(object):
                 self.snapshot_train_train[i * self.N:(i + 1) * self.N, :] = np.matmul(
                     self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
                     self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, :self.num_training_samples])
-
         else:
             perm_id = np.random.RandomState(seed=42).permutation(self.time_amplitude_train.shape[1])
             self.time_amplitude_train = self.time_amplitude_train[:, perm_id]
@@ -125,7 +124,7 @@ class TestingFramework(object):
                 elif self.typeConv == '1D':
                     conv_shape = self.N
                 else:
-                    conv_shape = (int(np.sqrt(self.N)), int(np.sqrt(self.N)))
+                    conv_shape = self.N
                 self.model = ConvAutoEncoderDNN(conv_shape=conv_shape, num_params=self.num_parameters,
                                                 typeConv=self.typeConv)
                 self.model.load_net_weights(log_folder_trained_model + '/net_weights/' + 'best_results.pt')
