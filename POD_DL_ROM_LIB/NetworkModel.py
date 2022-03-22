@@ -19,6 +19,73 @@ class Base(torch.nn.Module):
         self.load_state_dict(torch.load(filePath, map_location=DEVICE))
 
 
+class DeepFeedForwardNetwork(Base):
+    def __init__(self, encoded_dimension, num_params, f=torch.nn.Sigmoid):
+        super(self.__class__, self).__init__()
+
+        # Here we define the hyperparameter required for the Deep Feed-forward neural network
+        self.num_layers = 4  # These are the number of hidden layers for the feedforward neural network
+        self.num_neurons = 70  # Number of neurons for each hidden layer of feedforward network
+        self.num_params = num_params  # Number of parameters for the problem
+        self.n = encoded_dimension  # Encoded dimension for the DFNN
+
+        self.ff1 = torch.nn.Linear(in_features=self.num_params, out_features=self.num_neurons)
+        self.ff1b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        self.ff2 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff2b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        self.ff3 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff3drop = torch.nn.Dropout(p=0.1)
+        self.ff3b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        # self.ff4 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        # self.ff4b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        self.ff5 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff5drop = torch.nn.Dropout(p=0.1)
+        self.ff5b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        # self.ff6 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        # self.ff6b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        self.ff7 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff7drop = torch.nn.Dropout(p=0.1)
+        self.ff7b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        # self.ff8 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        # self.ff8b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        self.ff9 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff9drop = torch.nn.Dropout(p=0.1)
+        self.ff9b = torch.nn.BatchNorm1d(self.num_neurons)
+
+        self.ff10 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.n)
+
+        self.f = f()
+
+    def forward(self, y, apply_f=False, return_nn=False):
+        nn = self.ff1b(self.activation(self.ff1(y)))
+        nn = self.ff2b(self.activation(self.ff2(nn)))
+        nn = self.ff3b(self.activation(self.ff3drop(self.ff3(nn))))
+        # nn = self.ff4b(self.activation(self.ff4(nn)))
+        nn = self.ff5b(self.activation(self.ff5drop(self.ff5(nn))))
+        # nn = self.ff6b(self.activation(self.ff6(nn)))
+        nn = self.ff7b(self.activation(self.ff7drop(self.ff7(nn))))
+        # nn = self.ff8b(self.activation(self.ff8(nn)))
+        nn = self.ff9b(self.activation(self.ff9drop(self.ff9(nn))))
+        nn = self.ff10(nn)
+
+        # No activation and no softmax at the end
+        if apply_f:
+            if return_nn:
+                return nn, self.f(nn)
+            else:
+                return self.f(nn)
+        else:
+            return nn
+
+
 class ConvEncoder(Base):
     def __init__(self, encoded_dimension, conv_shape=(16, 16), input_norm=torch.nn.InstanceNorm2d):
         super(self.__class__, self).__init__()
@@ -103,73 +170,6 @@ class ConvEncoder(Base):
         enc = self.fc2(enc)
 
         return enc
-
-
-class DeepFeedForwardNetwork(Base):
-    def __init__(self, encoded_dimension, num_params, f=torch.nn.Sigmoid):
-        super(self.__class__, self).__init__()
-
-        # Here we define the hyperparameter required for the Deep Feed-forward neural network
-        self.num_layers = 4  # These are the number of hidden layers for the feedforward neural network
-        self.num_neurons = 70  # Number of neurons for each hidden layer of feedforward network
-        self.num_params = num_params  # Number of parameters for the problem
-        self.n = encoded_dimension  # Encoded dimension for the DFNN
-
-        self.ff1 = torch.nn.Linear(in_features=self.num_params, out_features=self.num_neurons)
-        self.ff1b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        self.ff2 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff2b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        self.ff3 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff3drop = torch.nn.Dropout(p=0.1)
-        self.ff3b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        # self.ff4 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        # self.ff4b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        self.ff5 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff5drop = torch.nn.Dropout(p=0.1)
-        self.ff5b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        # self.ff6 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        # self.ff6b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        self.ff7 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff7drop = torch.nn.Dropout(p=0.1)
-        self.ff7b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        # self.ff8 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        # self.ff8b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        self.ff9 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff9drop = torch.nn.Dropout(p=0.1)
-        self.ff9b = torch.nn.BatchNorm1d(self.num_neurons)
-
-        self.ff10 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.n)
-
-        self.f = f()
-
-    def forward(self, y, apply_f=False, return_nn=False):
-        nn = self.ff1b(self.activation(self.ff1(y)))
-        nn = self.ff2b(self.activation(self.ff2(nn)))
-        nn = self.ff3b(self.activation(self.ff3drop(self.ff3(nn))))
-        # nn = self.ff4b(self.activation(self.ff4(nn)))
-        nn = self.ff5b(self.activation(self.ff5drop(self.ff5(nn))))
-        # nn = self.ff6b(self.activation(self.ff6(nn)))
-        nn = self.ff7b(self.activation(self.ff7drop(self.ff7(nn))))
-        # nn = self.ff8b(self.activation(self.ff8(nn)))
-        nn = self.ff9b(self.activation(self.ff9drop(self.ff9(nn))))
-        nn = self.ff10(nn)
-
-        # No activation and no softmax at the end
-        if apply_f:
-            if return_nn:
-                return nn, self.f(nn)
-            else:
-                return self.f(nn)
-        else:
-            return nn
 
 
 class ConvDecoder(Base):

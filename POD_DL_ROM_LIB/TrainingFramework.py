@@ -340,8 +340,6 @@ class TrainingFramework(object):
                 print('Average loss at epoch {0} on validation set: {1}'.format(epoch, valLoss / nBatches))
                 print('Took: {0} seconds\n'.format(time.time() - start_time))
 
-        print('Best loss on validation set: {0}'.format(self.best_so_far))
-
         if self.tensorboard:
             self.tensorboard.close()
 
