@@ -20,12 +20,11 @@ class Base(torch.nn.Module):
 
 
 class DeepFeedForwardNetwork(Base):
-    def __init__(self, encoded_dimension, num_params, f=torch.nn.Tanh):
+    def __init__(self, encoded_dimension, num_params, f=torch.nn.LeakyReLU):
         super(self.__class__, self).__init__()
 
         # Here we define the hyperparameter required for the Deep Feed-forward neural network
-        self.num_layers = 4  # These are the number of hidden layers for the feedforward neural network
-        self.num_neurons = 500  # Number of neurons for each hidden layer of feedforward network
+        self.num_neurons = 512  # Number of neurons for each hidden layer of feedforward network
         self.num_params = num_params  # Number of parameters for the problem
         self.n = encoded_dimension  # Encoded dimension for the DFNN
 

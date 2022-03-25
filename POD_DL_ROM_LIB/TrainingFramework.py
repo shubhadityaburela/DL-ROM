@@ -81,11 +81,6 @@ class TrainingFramework(object):
         # We perform an 67-33 split for the training and validation set
         self.num_training_samples = int(split * self.num_samples)
 
-        ########################################################
-        self.data_preparation()
-        self.input_pipeline()
-        ########################################################
-
     def data_preparation(self):
         print('DATA PREPARATION START...\n')
 
@@ -208,6 +203,8 @@ class TrainingFramework(object):
 
     def training(self, epochs=10000, save_every=100, print_every=10, fig_save_every=500,
                  log_base_name=''):
+        self.data_preparation()
+        self.input_pipeline()
 
         log_folder = self.logs_folder + log_base_name + time.strftime("%Y_%m_%d__%H-%M-%S", time.localtime()) + '/'
         if not os.path.isdir(log_folder):
