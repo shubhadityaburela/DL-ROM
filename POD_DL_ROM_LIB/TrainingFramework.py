@@ -81,6 +81,11 @@ class TrainingFramework(object):
         # We perform an 67-33 split for the training and validation set
         self.num_training_samples = int(split * self.num_samples)
 
+        ########################################################
+        self.data_preparation()
+        self.input_pipeline()
+        ########################################################
+
     def data_preparation(self):
         print('DATA PREPARATION START...\n')
 
