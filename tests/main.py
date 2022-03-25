@@ -73,48 +73,46 @@ def generate():
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     # Loading training and testing data for both Snapshots and parameters
-    custom = True
+    custom = False
     if custom:
         TrainingSnapShotMatrix, TestingSnapShotMatrix, TrainingParameterMatrix, TestingParameterMatrix = generate()
     else:
-        TrainingSnapShotMatrix = np.load()
-        TestingSnapShotMatrix = np.load()
-        TrainingParameterMatrix = np.load()
-        TestingParameterMatrix = np.load()
+        TrainingSnapShotMatrix = np.load('snapshot_train_frame.npy', allow_pickle=True)
+        TestingSnapShotMatrix = np.load('snapshot_test_frame.npy', allow_pickle=True)
+        TrainingParameterMatrix = np.load('params_train.npy', allow_pickle=True)
+        TestingParameterMatrix = np.load('params_test.npy', allow_pickle=True)
 
     # Parameters needed for the training and validation of the framework
     params = {
         'FOM': True,  # This switch is true for full order model input and false for only time amplitude matrix
-        'snapshot_train': TrainingSnapShotMatrix,
-        'snapshot_test': TestingSnapShotMatrix,
+        'snapshot_train': TrainingSnapShotMatrix[0],
+        'snapshot_test': TestingSnapShotMatrix[0],
         'time_amplitude_train': None,
         'time_amplitude_test': None,
-        'parameter_train': TrainingParameterMatrix,
-        'parameter_test': TestingParameterMatrix,
-        'num_parameters': int(TrainingParameterMatrix.shape[0]),  # n_mu + 1
-        'num_time_steps': 500,  # N_t
-        'num_samples': int(TrainingSnapShotMatrix.shape[1]),  # N_train x N_t
-        'num_test_samples': int(TestingSnapShotMatrix.shape[1]),  # N_test x N_t
-        'batch_size': 500,
+        'parameter_train': TrainingParameterMatrix[0],
+        'parameter_test': TestingParameterMatrix[0],
+        'num_parameters': int(TrainingParameterMatrix[0].shape[0]),  # n_mu + 1
+        'num_time_steps': 400,  # N_t
+        'num_samples': int(TrainingSnapShotMatrix[0].shape[1]),  # N_train x N_t
+        'num_test_samples': int(TestingSnapShotMatrix[0].shape[1]),  # N_test x N_t
+        'batch_size': 400,
         'num_early_stop': 1500,  # Number of epochs for the early stopping
-        'restart': None,  # true if restart is selected
         'scaling': True,  # true if the data should be scaled
         'perform_svd': 'randomized',  # '', 'normal', 'randomized'
         'learning_rate': 0.001,  # eta  0.001
-        'full_order_model_dimension': int(TrainingSnapShotMatrix.shape[0]),  # N_h
-        'reduced_order_model_dimension': 256,  # N
-        'encoded_dimension': 4,  # dimension of the system after the encoder
+        'full_order_model_dimension': int(TrainingSnapShotMatrix[0].shape[0]),  # N_h
+        'reduced_order_model_dimension': 5,  # N
+        'encoded_dimension': 7,  # dimension of the system after the encoder
         'num_dimension': 1,  # Number of dimensions (d)
         'omega_h': 0.8,
         'omega_N': 0.2,
-        'n_h': None,
         'typeConv': '1D'
     }
 
-    # This instance takes into consideration only the bottleneck and no NN in between
-
-    # POD_DL_ROM = TrainingFramework(params)
-    # POD_DL_ROM.training(epochs=3000, save_every=10, print_every=50)
+    # POD_DL_ROM = TrainingFramework(params, split=0.67)
+    # POD_DL_ROM.training(epochs=50, save_every=10, print_every=10)
+    #
+    # sys.exit()
 
     testing_method = 'weight_based'
     if testing_method == 'model_based':
@@ -127,10 +125,12 @@ if __name__ == '__main__':
         log_folder_trained_model.reverse()
 
         time_amplitudes_predicted = []
-        for folder_name in log_folder_trained_model:
-            TESTING = TestingFramework(params)
-            TESTING.testing(log_folder_trained_model=str(folder_name), testing_method='model_based')
-            time_amplitudes_predicted.append(TESTING.time_amplitude_test_output)
+        # Testing for each frame
+        for frame, folder_name in enumerate(log_folder_trained_model):
+            # Testing for collection of snapshots
+            test_model = TestingFramework(params)
+            test_model.testing(log_folder_trained_model=str(folder_name), testing_method='model_based')
+            time_amplitudes_predicted.append(test_model.time_amplitude_test_output)
     else:
         log_folder_base = 'training_results_local/'
         num_frame_models = 1
@@ -141,44 +141,47 @@ if __name__ == '__main__':
         log_folder_trained_model.reverse()
 
         time_amplitudes_predicted = []
-        for folder_name in log_folder_trained_model:
-            TESTING = TestingFramework(params)
-            TESTING.testing(log_folder_trained_model=str(folder_name), testing_method='weight_based')
-            time_amplitudes_predicted.append(TESTING.time_amplitude_test_output)
+        # Testing for each frame
+        for frame, folder_name in enumerate(log_folder_trained_model):
+            # Testing for collection of snapshots
+            test_model = TestingFramework(params)
+            test_model.testing(log_folder_trained_model=str(folder_name), testing_method='weight_based')
+            time_amplitudes_predicted.append(test_model.time_amplitude_test_output)
 
     # Plot and testing
     Nt = params['num_time_steps']
+    num_instances = params['snapshot_test'].shape[1] // Nt
+
     N_h = params['full_order_model_dimension']
     N = params['reduced_order_model_dimension']
     num_dim = params['num_dimension']
 
-    num_instances = params['snapshot_test'].shape[1] // Nt
     NN_err = np.zeros((num_instances, 1))
     POD_err = np.zeros((num_instances, 1))
     t_err = np.zeros((num_instances, 1))
     SnapMat_NN = np.zeros_like(params['snapshot_test'])
     SnapMat_POD = np.zeros_like(params['snapshot_test'])
-    time_amplitudes = np.zeros((num_dim * N, num_instances * Nt))
+    time_amplitudes = np.zeros((num_dim * N, Nt))
 
     U = Helper.PerformRandomizedSVD(params['snapshot_train'], N, N_h, num_dim)
 
-    for fr in range(len(time_amplitudes_predicted)):
+    for fr in range(num_frame_models):
         for i in range(num_instances):
             for j in range(params['num_dimension']):
                 SnapMat_NN[j * N_h:(j + 1) * N_h, i * Nt:(i + 1) * Nt] = \
                     np.matmul(U[j * N_h:(j + 1) * N_h, :],
                               time_amplitudes_predicted[fr][j * N:(j + 1) * N, i * Nt:(i + 1) * Nt])
-                time_amplitudes[j * N:(j + 1) * N, i * Nt:(i + 1) * Nt] = np.matmul(
+                time_amplitudes[j * N:(j + 1) * N, :] = np.matmul(
                     U.transpose()[:, j * N_h:(j + 1) * N_h], params['snapshot_test'][j * N_h:(j + 1) * N_h, i * Nt:(i + 1) * Nt])
                 SnapMat_POD[j * N_h:(j + 1) * N_h, i * Nt:(i + 1) * Nt] = \
                     np.matmul(U[j * N_h:(j + 1) * N_h, :],
-                              time_amplitudes[j * N:(j + 1) * N, i * Nt:(i + 1) * Nt])
+                              time_amplitudes[j * N:(j + 1) * N, :])
 
             num = np.sqrt(np.mean(np.linalg.norm(
-                time_amplitudes[:, i * Nt:(i + 1) * Nt] -
+                time_amplitudes[:, :] -
                 time_amplitudes_predicted[fr][:, i * Nt:(i + 1) * Nt], 2, axis=1) ** 2))
             den = np.sqrt(np.mean(np.linalg.norm(
-                time_amplitudes[:, i * Nt:(i + 1) * Nt], 2, axis=1) ** 2))
+                time_amplitudes[:, :], 2, axis=1) ** 2))
             t_err[i] = num / den
 
             num = np.sqrt(np.mean(np.linalg.norm(
@@ -195,16 +198,24 @@ if __name__ == '__main__':
                 params['snapshot_test'][:, i * Nt:(i + 1) * Nt], 2, axis=1) ** 2))
             POD_err[i] = num / den
 
-        print('Relative time amplitude error indicator: {0}'.format(np.mean(t_err)))
-        print('Relative NN reconstruction error indicator: {0}'.format(np.mean(NN_err)))
-        print('Relative POD reconstruction error indicator: {0}'.format(np.mean(POD_err)))
+            print('Relative time amplitude error indicator: {0}'.format(t_err[i]))
+            print('Relative NN reconstruction error indicator: {0}'.format(NN_err[i]))
+            print('Relative POD reconstruction error indicator: {0}'.format(POD_err[i]))
+            print('\n')
 
-        X = np.linspace(0, 1000, 1000)
-        t = params['parameter_test'][1, :]
-        [X_grid, t_grid] = np.meshgrid(X, t)
-        X_grid = X_grid.T
-        t_grid = t_grid.T
-        plt.pcolormesh(X_grid, t_grid, SnapMat_NN)
-        plt.show()
+            X = np.linspace(0, 400, 400)
+            plt.plot(X, time_amplitudes[0, :])
+            plt.plot(X, time_amplitudes_predicted[fr][0, i * Nt:(i + 1) * Nt])
+            plt.show()
+
+        print(np.mean(t_err), np.mean(NN_err), np.mean(POD_err))
+
+        # X = np.linspace(0, 800, 800)
+        # t = params['parameter_test'][4, 0:400]
+        # [X_grid, t_grid] = np.meshgrid(X, t)
+        # X_grid = X_grid.T
+        # t_grid = t_grid.T
+        # plt.pcolormesh(X_grid, t_grid, SnapMat_NN)
+        # plt.show()
 
 

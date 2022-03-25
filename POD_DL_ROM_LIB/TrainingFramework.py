@@ -33,7 +33,6 @@ class TrainingFramework(object):
         self.num_test_samples = params['num_test_samples']
         self.batch_size = params['batch_size']
         self.num_early_stop = params['num_early_stop']
-        self.restart = params['restart']
         self.scaling = params['scaling']
         self.perform_svd = params['perform_svd']
         self.learning_rate = params['learning_rate']
@@ -43,7 +42,6 @@ class TrainingFramework(object):
         self.num_dimension = params['num_dimension']
         self.omega_h = params['omega_h']
         self.omega_N = params['omega_N']
-        self.n_h = params['n_h']
         self.typeConv = params['typeConv']
 
         self.device = device
@@ -55,6 +53,11 @@ class TrainingFramework(object):
         self.parameter_train_val = None
         self.parameter_train_train = None
         self.snapshot_test_test = None
+
+        self.snapshot_max = None
+        self.snapshot_min = None
+        self.parameter_max = None
+        self.parameter_min = None
 
         self.U = None
         self.U_transpose = None
@@ -75,9 +78,7 @@ class TrainingFramework(object):
 
         self.model = None
 
-        self.inputsForGraphVis = None
-
-        # We perform an 80-20 split for the training and validation set
+        # We perform an 67-33 split for the training and validation set
         self.num_training_samples = int(split * self.num_samples)
 
     def data_preparation(self):
@@ -109,7 +110,6 @@ class TrainingFramework(object):
             # Compute the intrinsic coordinates for 'self.snapshot_train_train' and 'self.snapshot_train_val'
             # by performing a projection onto the reduced basis.
             # self.snapshot_train_train = (self.U)^T x self.snapshot_train
-            start_time = time.time()
             self.U_transpose = np.transpose(self.U)  # making it (U^T)
             for i in range(self.num_dimension):
                 self.snapshot_train_train[i * self.N:(i + 1) * self.N, :] = np.matmul(
@@ -132,18 +132,18 @@ class TrainingFramework(object):
 
         # Normalize the data in 'self.snapshot_train_train' and 'self.snapshot_train_val'
         if self.scaling:
-            snapshot_max, snapshot_min = Helper.max_min_componentwise(self.snapshot_train_train,
-                                                                      self.num_training_samples,
-                                                                      self.num_dimension, self.N)
-            Helper.scaling_componentwise(self.snapshot_train_train, snapshot_max, snapshot_min,
+            self.snapshot_max, self.snapshot_min = Helper.max_min_componentwise(self.snapshot_train_train,
+                                                                                self.num_training_samples,
+                                                                                self.num_dimension, self.N)
+            Helper.scaling_componentwise(self.snapshot_train_train, self.snapshot_max, self.snapshot_min,
                                          self.num_dimension, self.N)
-            Helper.scaling_componentwise(self.snapshot_train_val, snapshot_max, snapshot_min,
+            Helper.scaling_componentwise(self.snapshot_train_val, self.snapshot_max, self.snapshot_min,
                                          self.num_dimension, self.N)
 
-            parameter_max, parameter_min = Helper.max_min_componentwise_params(self.parameter_train,
-                                                                               self.num_training_samples,
-                                                                               self.parameter_train.shape[0])
-            Helper.scaling_componentwise_params(self.parameter_train, parameter_max, parameter_min,
+            self.parameter_max, self.parameter_min = Helper.max_min_componentwise_params(self.parameter_train,
+                                                                                         self.num_training_samples,
+                                                                                         self.parameter_train.shape[0])
+            Helper.scaling_componentwise_params(self.parameter_train, self.parameter_max, self.parameter_min,
                                                 self.parameter_train.shape[0])
 
         # Split the 'self.parameter_train' matrix into -> 'self.parameter_train_train' and 'self.parameter_train_val'
@@ -190,18 +190,14 @@ class TrainingFramework(object):
 
         print('INPUT PIPELINE BUILD DONE ...\n')
 
-        for batch_idx, (X, y) in enumerate(self.training_loader):
-            if batch_idx == 0:
-                self.inputsForGraphVis = (X, y)
-            break
-
         pass
 
-    def loss_function(self, snapshot_data):
+    def loss_function(self, snapshot_data, criterion_h, criterion_N):
         output = snapshot_data.view(snapshot_data.size(0), -1)
-        self.loss_h = (self.omega_h / 2) * torch.mean(torch.sum(torch.pow(output - self.dec, 2), dim=1))
-        self.loss_N = (self.omega_N / 2) * torch.mean(torch.sum(torch.pow(self.enc - self.nn, 2), dim=1))
-        self.loss = self.loss_h + self.loss_N
+
+        self.loss_h = criterion_h(output, self.dec)
+        self.loss_N = criterion_N(self.enc, self.nn)
+        self.loss = self.omega_h * self.loss_h + self.omega_N * self.loss_N
 
         pass
 
@@ -228,10 +224,16 @@ class TrainingFramework(object):
             conv_shape = self.N
         else:
             conv_shape = self.N
-        self.model = ConvAutoEncoderDNN(conv_shape=conv_shape, num_params=self.num_parameters, typeConv=self.typeConv)
+        self.model = ConvAutoEncoderDNN(encoded_dimension=self.n,
+                                        conv_shape=conv_shape, num_params=self.num_parameters, typeConv=self.typeConv)
 
         # Instantiate the optimizer
-        self.opt = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+        self.opt = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=1e-5)
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(self.opt, gamma=0.9)
+
+        # Instantiate the loss
+        criterion_h = torch.nn.MSELoss()  # torch.nn.L1Loss()
+        criterion_N = torch.nn.MSELoss()  # torch.nn.L1Loss()
 
         # Here we apply the epoch looping throughout the mini batches
         self.best_so_far = 1e12  # For early stopping criteria
@@ -255,22 +257,27 @@ class TrainingFramework(object):
                 # Forward pass to get the outputs and calculate the loss
                 self.enc, self.nn, self.dec = self.model(snapshot_data, parameters)
 
-                self.loss_function(snapshot_data)
+                self.loss_function(snapshot_data, criterion_h, criterion_N)
 
                 # Perform back propagation and update the model parameters
                 self.loss.backward()
                 self.opt.step()
 
                 # Updating the training losses and the number of batches
-                trainLoss_h += self.loss_h
-                trainLoss_N += self.loss_N
-                trainLoss += self.loss
+                trainLoss_h += self.loss_h.item()
+                trainLoss_N += self.loss_N.item()
+                trainLoss += self.loss.item()
                 nBatches += 1
 
             training_loss_log.append([trainLoss / nBatches, epoch])
             if (epoch + 1) % save_every == 0:
                 self.model.save_network_weights(filePath=log_folder + 'net_weights/', fileName='epoch_' + str(epoch)
                                                                                                + '.pt')
+            if self.tensorboard:
+                self.tensorboard.add_scalar('Average train_loss_h', trainLoss_h / nBatches, epoch)
+                self.tensorboard.add_scalar('Average train_loss_N', trainLoss_N / nBatches, epoch)
+                self.tensorboard.add_scalar('Average train loss', trainLoss / nBatches, epoch)
+
             # Display model progress on the current training set
             if (epoch + 1) % print_every == 0:
                 print('Training batch Info...')
@@ -301,13 +308,15 @@ class TrainingFramework(object):
                         output_data = torch.cat((output_data, self.dec), dim=0)
 
                     # Calculate the loss function corresponding to the outputs
-                    self.loss_function(snapshot_data)
+                    self.loss_function(snapshot_data, criterion_h, criterion_N)
 
                     # Calculate the validation losses
-                    valLoss_h += self.loss_h
-                    valLoss_N += self.loss_N
-                    valLoss += self.loss
+                    valLoss_h += self.loss_h.item()
+                    valLoss_N += self.loss_N.item()
+                    valLoss += self.loss.item()
                     nBatches += 1
+
+            scheduler.step()
 
             validation_loss_log.append([valLoss / nBatches, epoch])
             reco_error = torch.norm(input_data - output_data, p='fro') / torch.norm(input_data, p='fro')
@@ -322,9 +331,6 @@ class TrainingFramework(object):
                 if (epoch + 1) % fig_save_every == 0:
                     fig_reco = self.plot_val_idx_reco(torch.transpose(output_data, 0, 1))
                     self.tensorboard.add_figure('reconstruction', fig_reco, global_step=epoch, close=True)
-                self.tensorboard.add_scalar('Average train_loss_h', trainLoss_h / nBatches, epoch)
-                self.tensorboard.add_scalar('Average train_loss_N', trainLoss_N / nBatches, epoch)
-                self.tensorboard.add_scalar('Average train loss', trainLoss / nBatches, epoch)
 
                 self.tensorboard.add_scalar('Average val_loss_h', valLoss_h / nBatches, epoch)
                 self.tensorboard.add_scalar('Average val_loss_N', valLoss_N / nBatches, epoch)
@@ -342,6 +348,13 @@ class TrainingFramework(object):
 
         if self.tensorboard:
             self.tensorboard.close()
+
+        # Save the scaling factors for testing the network
+        scaling = [self.snapshot_max, self.snapshot_min, self.parameter_max, self.parameter_min]
+        log_folder_variables = log_folder + '/variables/'
+        if not os.path.isdir(log_folder_variables):
+            os.makedirs(log_folder_variables)
+        np.save(log_folder_variables + 'scaling.npy', scaling, allow_pickle=True)
 
         pass
 

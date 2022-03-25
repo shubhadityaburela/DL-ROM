@@ -20,12 +20,12 @@ class Base(torch.nn.Module):
 
 
 class DeepFeedForwardNetwork(Base):
-    def __init__(self, encoded_dimension, num_params, f=torch.nn.Sigmoid):
+    def __init__(self, encoded_dimension, num_params, f=torch.nn.Tanh):
         super(self.__class__, self).__init__()
 
         # Here we define the hyperparameter required for the Deep Feed-forward neural network
         self.num_layers = 4  # These are the number of hidden layers for the feedforward neural network
-        self.num_neurons = 70  # Number of neurons for each hidden layer of feedforward network
+        self.num_neurons = 500  # Number of neurons for each hidden layer of feedforward network
         self.num_params = num_params  # Number of parameters for the problem
         self.n = encoded_dimension  # Encoded dimension for the DFNN
 
@@ -36,28 +36,28 @@ class DeepFeedForwardNetwork(Base):
         self.ff2b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff3 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff3drop = torch.nn.Dropout(p=0.1)
+        self.ff3drop = torch.nn.Dropout(p=0.05)
         self.ff3b = torch.nn.BatchNorm1d(self.num_neurons)
 
-        # self.ff4 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        # self.ff4b = torch.nn.BatchNorm1d(self.num_neurons)
+        self.ff4 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff4b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff5 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff5drop = torch.nn.Dropout(p=0.1)
+        self.ff5drop = torch.nn.Dropout(p=0.05)
         self.ff5b = torch.nn.BatchNorm1d(self.num_neurons)
 
-        # self.ff6 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        # self.ff6b = torch.nn.BatchNorm1d(self.num_neurons)
+        self.ff6 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff6b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff7 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff7drop = torch.nn.Dropout(p=0.1)
+        self.ff7drop = torch.nn.Dropout(p=0.05)
         self.ff7b = torch.nn.BatchNorm1d(self.num_neurons)
 
-        # self.ff8 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        # self.ff8b = torch.nn.BatchNorm1d(self.num_neurons)
+        self.ff8 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
+        self.ff8b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff9 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.num_neurons)
-        self.ff9drop = torch.nn.Dropout(p=0.1)
+        self.ff9drop = torch.nn.Dropout(p=0.05)
         self.ff9b = torch.nn.BatchNorm1d(self.num_neurons)
 
         self.ff10 = torch.nn.Linear(in_features=self.num_neurons, out_features=self.n)
@@ -68,11 +68,11 @@ class DeepFeedForwardNetwork(Base):
         nn = self.ff1b(self.activation(self.ff1(y)))
         nn = self.ff2b(self.activation(self.ff2(nn)))
         nn = self.ff3b(self.activation(self.ff3drop(self.ff3(nn))))
-        # nn = self.ff4b(self.activation(self.ff4(nn)))
+        nn = self.ff4b(self.activation(self.ff4(nn)))
         nn = self.ff5b(self.activation(self.ff5drop(self.ff5(nn))))
-        # nn = self.ff6b(self.activation(self.ff6(nn)))
+        nn = self.ff6b(self.activation(self.ff6(nn)))
         nn = self.ff7b(self.activation(self.ff7drop(self.ff7(nn))))
-        # nn = self.ff8b(self.activation(self.ff8(nn)))
+        nn = self.ff8b(self.activation(self.ff8(nn)))
         nn = self.ff9b(self.activation(self.ff9drop(self.ff9(nn))))
         nn = self.ff10(nn)
 
@@ -173,7 +173,7 @@ class ConvEncoder(Base):
 
 
 class ConvDecoder(Base):
-    def __init__(self, encoded_dimension, f=torch.nn.Sigmoid, conv_shape=None, lam=1, init_zeros=False):
+    def __init__(self, encoded_dimension, f=torch.nn.Tanh, conv_shape=None, lam=1, init_zeros=False):
         super(self.__class__, self).__init__()
 
         # Here we define the hyperparameter required for the Convolutional Encoder architecture
@@ -258,7 +258,7 @@ class ConvEncoder1D(Base):
         super(self.__class__, self).__init__()
 
         # Here we define the hyperparameter required for the Convolutional Encoder architecture
-        self.k = 5  # Size of the convolutional kernel
+        self.k = 3  # Size of the convolutional kernel
         self.n = encoded_dimension  # Encoded dimension for the convolutional encoder
         self.conv_shape_list = []  # The list storing the convolutional shapes of the inputs and outputs
 
@@ -268,7 +268,7 @@ class ConvEncoder1D(Base):
 
         self.conv_shape_list.append(self.conv_shape)
 
-        self.padding = 2
+        self.padding = 0
         self.kernel_size = self.k
         self.stride = 1
         self.conv1 = torch.nn.Conv1d(in_channels=1, out_channels=8, kernel_size=self.kernel_size, stride=self.stride,
@@ -278,9 +278,9 @@ class ConvEncoder1D(Base):
 
         self.conv_shape_list.append(self.conv_shape)
 
-        self.padding = 2
+        self.padding = 1
         self.kernel_size = self.k
-        self.stride = 2
+        self.stride = 1
         self.conv2 = torch.nn.Conv1d(in_channels=8, out_channels=16, kernel_size=self.kernel_size, stride=self.stride,
                                      padding=self.padding)
         self.conv2b = torch.nn.BatchNorm1d(16)
@@ -288,7 +288,7 @@ class ConvEncoder1D(Base):
 
         self.conv_shape_list.append(self.conv_shape)
 
-        self.padding = 2
+        self.padding = 1
         self.kernel_size = self.k
         self.stride = 2
         self.conv3 = torch.nn.Conv1d(in_channels=16, out_channels=32, kernel_size=self.kernel_size, stride=self.stride,
@@ -298,9 +298,9 @@ class ConvEncoder1D(Base):
 
         self.conv_shape_list.append(self.conv_shape)
 
-        self.padding = 2
+        self.padding = 1
         self.kernel_size = self.k
-        self.stride = 2
+        self.stride = 1
         self.conv4 = torch.nn.Conv1d(in_channels=32, out_channels=64, kernel_size=self.kernel_size, stride=self.stride,
                                      padding=self.padding)
         self.conv4b = torch.nn.BatchNorm1d(64)
@@ -332,11 +332,11 @@ class ConvEncoder1D(Base):
 
 
 class ConvDecoder1D(Base):
-    def __init__(self, encoded_dimension, f=torch.nn.Sigmoid, conv_shape=None, lam=1, init_zeros=False):
+    def __init__(self, encoded_dimension, f=torch.nn.Tanh, conv_shape=None, lam=1, init_zeros=False):
         super(self.__class__, self).__init__()
 
         # Here we define the hyperparameter required for the Convolutional Encoder architecture
-        self.k = 5  # Size of the convolutional kernel
+        self.k = 3  # Size of the convolutional kernel
         self.n = encoded_dimension  # Encoded dimension for the convolutional encoder
         self.lam = lam
         self.conv_shape_list = conv_shape
@@ -371,7 +371,7 @@ class ConvDecoder1D(Base):
 
         self.conv3b_t = torch.nn.BatchNorm1d(32)
         self.kernel_size = self.k
-        self.stride = 2
+        self.stride = 1
         p = np.floor(((self.conv_shape_list[-3] - 1) * self.stride + self.k - self.conv_shape_list[-4]) / 2)
         while p < 0:
             self.stride = self.stride + 1
@@ -382,7 +382,7 @@ class ConvDecoder1D(Base):
 
         self.conv4b_t = torch.nn.BatchNorm1d(16)
         self.kernel_size = self.k
-        self.stride = 2
+        self.stride = 1
         p = np.floor(((self.conv_shape_list[-4] - 1) * self.stride + self.k - self.conv_shape_list[-5]) / 2)
         while p < 0:
             self.stride = self.stride + 1
@@ -420,8 +420,8 @@ class ConvDecoder1D(Base):
 
 
 class ConvAutoEncoderDNN(Base):
-    def __init__(self, encoder=None, df_nn=None, decoder=None, encoded_dimension=4, f=torch.nn.Sigmoid,
-                 conv_shape=16, num_params=2, typeConv='2D'):
+    def __init__(self, encoder=None, df_nn=None, decoder=None, encoded_dimension=4, f=torch.nn.Tanh,
+                 conv_shape=16, num_params=2, typeConv='1D'):
         super(self.__class__, self).__init__()
 
         self.typeConv = typeConv

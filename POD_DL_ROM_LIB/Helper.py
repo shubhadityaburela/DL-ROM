@@ -44,11 +44,15 @@ def max_min(Mat, n_train):
 
 
 def scaling(Mat, Mat_max, Mat_min):
-    Mat[:] = (Mat - Mat_min) / (Mat_max - Mat_min)
+    u = 1
+    l = -1
+    Mat[:] = ((Mat - Mat_min) / (Mat_max - Mat_min)) * (u - l) + l
 
 
 def inverse_scaling(Mat, Mat_max, Mat_min):
-    Mat[:] = (Mat_max - Mat_min) * Mat + Mat_min
+    u = 1
+    l = -1
+    Mat[:] = (Mat_max - Mat_min) * (Mat - l) / (u - l) + Mat_min
 
 
 def max_min_componentwise(Mat, n_train, num_dim, N):
@@ -68,6 +72,8 @@ def scaling_componentwise(Mat, Mat_max, Mat_min, num_dim, N):
 def inverse_scaling_componentwise(Mat, Mat_max, Mat_min, num_dim, N):
     for i in range(num_dim):
         inverse_scaling(Mat[:, i * N: (i + 1) * N], Mat_max[i], Mat_min[i])
+
+
 ###########################################################
 
 
@@ -112,4 +118,3 @@ def to_torch(data, device=DEVICE):
             data = data.to(device)
 
     return data
-

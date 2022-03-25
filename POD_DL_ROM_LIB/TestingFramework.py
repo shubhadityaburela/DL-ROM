@@ -23,7 +23,6 @@ class TestingFramework(object):
         self.num_test_samples = params['num_test_samples']
         self.batch_size = params['batch_size']
         self.num_early_stop = params['num_early_stop']
-        self.restart = params['restart']
         self.scaling = params['scaling']
         self.perform_svd = params['perform_svd']
         self.learning_rate = params['learning_rate']
@@ -33,63 +32,16 @@ class TestingFramework(object):
         self.num_dimension = params['num_dimension']
         self.omega_h = params['omega_h']
         self.omega_N = params['omega_N']
-        self.n_h = params['n_h']
         self.typeConv = params['typeConv']
 
         self.device = device
         self.time_amplitude_test_output = None
 
-        # We perform an 80-20 split for the training and validation set
-        self.num_training_samples = int(0.8 * self.num_samples)
-
     def testing_data_preparation(self):
-        if self.FOM:
-            # First we need to perform the SVD of the snapshot matrix to create the basis matrix 'self.U'
-            # Full_dimension = N_h x N_s, where N_s = N_train x N_t (N_t : time instants, N_train : parameter instances)
-            # Reduced dimension = N (the final basis matrix U will be of size N_h x N)
-            if self.perform_svd == 'normal':
-                self.U = Helper.PerformSVD(self.snapshot_train, self.N, self.N_h, self.num_dimension)
-            elif self.perform_svd == 'randomized':
-                self.U = Helper.PerformRandomizedSVD(self.snapshot_train, self.N, self.N_h, self.num_dimension)
-            else:
-                print('Please select of the two options : normal or randomized')
-                exit()
-            self.U_transpose = np.transpose(self.U)  # making it (U^T)
-
-            # We now perform random permutation of the columns of the 'self.snapshot_train'
-            # to better generalize the split
-            perm_id = np.random.RandomState(seed=42).permutation(self.snapshot_train.shape[1])
-            self.snapshot_train = self.snapshot_train[:, perm_id]
-            self.parameter_train = self.parameter_train[:, perm_id]
-
-            # Split the 'self.snapshot_train' matrix into -> 'self.snapshot_train_train'
-            self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
-
-            # Compute the intrinsic coordinates for 'self.snapshot_train_train' by performing a projection onto the
-            # reduced basis.
-            # self.snapshot_train_train = (self.U)^T x self.snapshot_train
-            for i in range(self.num_dimension):
-                self.snapshot_train_train[i * self.N:(i + 1) * self.N, :] = np.matmul(
-                    self.U_transpose[:, i * self.N_h:(i + 1) * self.N_h],
-                    self.snapshot_train[i * self.N_h:(i + 1) * self.N_h, :self.num_training_samples])
-        else:
-            perm_id = np.random.RandomState(seed=42).permutation(self.time_amplitude_train.shape[1])
-            self.time_amplitude_train = self.time_amplitude_train[:, perm_id]
-            self.parameter_train = self.parameter_train[:, perm_id]
-
-            self.snapshot_train_train = np.zeros((self.num_dimension * self.N, self.num_training_samples))
-            self.snapshot_train_train = self.time_amplitude_train[:, :self.num_training_samples]
 
         if self.scaling:
-            self.snapshot_max, self.snapshot_min = Helper.max_min_componentwise(self.snapshot_train_train,
-                                                                                self.num_training_samples,
-                                                                                self.num_dimension, self.N)
-            self.parameter_max, self.parameter_min = Helper.max_min_componentwise_params(self.parameter_train,
-                                                                                         self.num_training_samples,
-                                                                                         self.parameter_train.shape[0])
             Helper.scaling_componentwise_params(self.parameter_test, self.parameter_max, self.parameter_min,
                                                 self.parameter_test.shape[0])
-
         pass
 
     def testing_pipeline(self):
@@ -125,9 +77,17 @@ class TestingFramework(object):
                     conv_shape = self.N
                 else:
                     conv_shape = self.N
-                self.model = ConvAutoEncoderDNN(conv_shape=conv_shape, num_params=self.num_parameters,
+                self.model = ConvAutoEncoderDNN(encoded_dimension=self.n, conv_shape=conv_shape,
+                                                num_params=self.num_parameters,
                                                 typeConv=self.typeConv)
                 self.model.load_net_weights(log_folder_trained_model + '/net_weights/' + 'best_results.pt')
+
+        # Reading the scaling factors for the testing data
+        scaling = np.load(log_folder_trained_model + '/variables/' + 'scaling.npy', allow_pickle=True)
+        self.snapshot_max = scaling[0]
+        self.snapshot_min = scaling[1]
+        self.parameter_max = scaling[2]
+        self.parameter_min = scaling[3]
 
         self.testing_data_preparation()
         self.testing_pipeline()
