@@ -1,6 +1,6 @@
 # MLbasedModelReduction
 
-This code is developed for academic purposes under the ongoing research of implementing Machine Learning algorithms for non-intrusive model order reduction of transport processes in fluid dynamics.
+This code is developed for academic purposes under the ongoing research of implementing Machine Learning algorithms for non-intrusive model order reduction of transport processes in non-linear dynamics.
 
 Note: This code is under development and constant monitoring
 
