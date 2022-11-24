@@ -1,4 +1,4 @@
-# MLbasedModelReduction
+# DL-ROM
 
 This code is developed for academic purposes under the ongoing research of implementing Machine Learning algorithms for non-intrusive model order reduction of transport processes in non-linear dynamics.
 
