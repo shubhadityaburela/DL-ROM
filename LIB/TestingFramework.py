@@ -45,7 +45,7 @@ class TestingFramework(object):
 
     def testing_pipeline(self):
         # We build our input testing pipeline with the help of dataloader
-        # We transpose our data for simplicity purpose
+        # We transpose our wildfire_data for simplicity purpose
         self.parameter_test = np.transpose(self.parameter_test)
 
         y = torch.from_numpy(self.parameter_test).float()  # params - (mu, t)
@@ -84,7 +84,7 @@ class TestingFramework(object):
         else:
             self.model = model
 
-        # Reading the scaling factors for the testing data
+        # Reading the scaling factors for the testing wildfire_data
         scaling = np.load(log_folder_trained_model + '/variables/' + 'scaling.npy', allow_pickle=True)
         self.snapshot_max = scaling[0]
         self.snapshot_min = scaling[1]
@@ -98,10 +98,10 @@ class TestingFramework(object):
 
         self.test_output = None
         self.model.eval()
-        # Loop over mini batches of data
+        # Loop over mini batches of wildfire_data
         with torch.no_grad():
             for batch_idx, parameters in enumerate(self.testing_loader):
-                # Forward pass for the testing data
+                # Forward pass for the testing wildfire_data
                 self.nn, self.dec = self.model.forward_test(parameters[0])
                 if batch_idx == 0:
                     self.test_output = np.asarray(self.dec)

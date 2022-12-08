@@ -19,7 +19,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class TrainingFramework(object):
-    def __init__(self, params, split=0.8, device=DEVICE, log_folder='./training_results_local/') -> None:
+    def __init__(self, params, split=0.67, device=DEVICE, log_folder='./training_results_local/') -> None:
 
         self.time_amplitude_train = params['time_amplitude_train']
         self.parameter_train = params['parameter_train']
@@ -91,7 +91,7 @@ class TrainingFramework(object):
             self.time_amplitude_train = self.time_amplitude_train[:, perm_id]
             self.parameter_train = self.parameter_train[:, perm_id]
 
-        # Normalize the data
+        # Normalize the wildfire_data
         if self.scaling:
             self.snapshot_max, self.snapshot_min = Utilities.max_min_componentwise(
                 self.time_amplitude_train[:self.totalModes, :],
@@ -128,7 +128,7 @@ class TrainingFramework(object):
     def input_pipeline(self):
         print('INPUT PIPELINE BUILD START ...\n')
         # We build our input pipeline with the help of dataloader
-        # We transpose our data for simplicity purpose
+        # We transpose our wildfire_data for simplicity purpose
         self.data_train_train = np.transpose(self.data_train_train)
         self.data_train_val = np.transpose(self.data_train_val)
         self.parameter_train_train = np.transpose(self.parameter_train_train)
@@ -139,7 +139,7 @@ class TrainingFramework(object):
         X_val = torch.from_numpy(self.data_train_val).float()
         y_val = torch.from_numpy(self.parameter_train_val).float()
 
-        # Reshape the training and validation data into the appropriate shape
+        # Reshape the training and validation wildfire_data into the appropriate shape
         if self.typeConv == '2D':
             X_train = torch.reshape(X_train, shape=[-1, 1, int(np.sqrt(self.N)), int(np.sqrt(self.N))])
             X_val = torch.reshape(X_val, shape=[-1, 1, int(np.sqrt(self.N)), int(np.sqrt(self.N))])
@@ -227,7 +227,7 @@ class TrainingFramework(object):
             trainLoss = 0
             nBatches = 0
             self.model.train()
-            # Loop over the mini batches of data
+            # Loop over the mini batches of wildfire_data
             for batch_idx, (snapshot_data, parameters) in enumerate(self.training_loader):
                 # Clear gradients w.r.t parameters
                 self.opt.zero_grad()
@@ -273,10 +273,10 @@ class TrainingFramework(object):
             input_data = None
             output_data = None
             self.model.eval()
-            # Loop over mini batches of data
+            # Loop over mini batches of wildfire_data
             with torch.no_grad():
                 for batch_idx, (snapshot_data, parameters) in enumerate(self.validation_loader):
-                    # Forward pass for the validation data
+                    # Forward pass for the validation wildfire_data
                     self.enc, self.nn, self.dec = self.model(snapshot_data, parameters)
                     if batch_idx == 0:
                         input_data = snapshot_data.view(snapshot_data.size(0), -1)
