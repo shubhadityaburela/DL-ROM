@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import os
 import sys
-from NetworkModel import ConvAutoEncoderDNN
+from CADFNN import ConvAutoEncoderDNN
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

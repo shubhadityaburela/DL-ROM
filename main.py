@@ -9,8 +9,8 @@ sys.path.append('./LIB/')
 impath = "./plots/"
 os.makedirs(impath, exist_ok=True)
 
-from TrainingFramework import TrainingFramework
-from TestingFramework import TestingFramework
+from CADFNN_training import TrainingFramework
+from CADFNN_testing import TestingFramework
 import Utilities
 
 

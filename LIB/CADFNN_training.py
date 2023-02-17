@@ -5,7 +5,7 @@ import torch
 import os
 import sys
 import matplotlib.pyplot as plt
-from NetworkModel import ConvAutoEncoderDNN
+from CADFNN import ConvAutoEncoderDNN
 
 try:
     import tensorboard
